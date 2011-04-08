@@ -21,7 +21,7 @@
 ## ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.  */
    
 
-cdef extern from "jdwp_wire.h":
+cdef extern from "wire.h":
 	ctypedef unsigned char uint8_t
 	ctypedef unsigned short uint16_t
 	ctypedef unsigned int uint32_t

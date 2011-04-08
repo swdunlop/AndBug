@@ -22,7 +22,7 @@
    ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
    POSSIBILITY OF SUCH DAMAGE.  */
    
-#include "jdwp_wire.h"
+#include "wire.h"
 #include <string.h>
 #include <stdlib.h>
 #include <arpa/inet.h>

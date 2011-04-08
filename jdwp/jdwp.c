@@ -27,7 +27,7 @@
 #define __PYX_EXTERN_C extern
 #endif
 #include <math.h>
-#include "jdwp_wire.h"
+#include "wire.h"
 
 
 typedef struct {PyObject **p; int i; char *s; long n;} __Pyx_StringTabEntry; /*proto*/

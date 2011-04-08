@@ -1,7 +1,7 @@
 from distutils.core import setup, Extension
 
 jdwp = Extension(
-	'andbug.jdwp', ['jdwp/jdwp.c', 'jdwp/jdwp_wire.c']
+	'andbug.jdwp', ['jdwp/jdwp.c', 'jdwp/wire.c']
 )
 
 setup(
