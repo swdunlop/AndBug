@@ -36,7 +36,7 @@ cdef extern from "jdwp_wire.h":
 		char* data
 
 	int jdwp_config( jdwp_buffer* buf, uint8_t fSz, uint8_t mSz, uint8_t oSz, uint8_t tSz, uint8_t sSz )
-	int jdwp_prepare( jdwp_buffer* buf, uint8_t* data, int len )
+	int jdwp_prepare( jdwp_buffer* buf, char* data, int len )
 	void jdwp_purge( jdwp_buffer* buf )
 	int jdwp_pack( jdwp_buffer* buf, char format, uint64_t value )
 	int jdwp_unpack( jdwp_buffer* buf, char format, uint64_t* value )
@@ -84,7 +84,10 @@ cdef extern from "Python.h":
 	object PyLong_FromLongLong(long long l)
 	object PyString_FromStringAndSize(char *s, Py_ssize_t len)
 	char* PyString_AsString(object s)
+	Py_ssize_t PyString_Size(object s)
 	int PyInt_GetMax()
+	object PyList_New(Py_ssize_t sz)
+	int PyList_SetItem(object lst, Py_ssize_t index, object item)
 
 cdef class JdwpBuffer:
 	cdef jdwp_buffer buf
@@ -100,6 +103,17 @@ cdef class JdwpBuffer:
 		einz( jdwp_pack_u32(&self.buf, quad) )
 	def packU64( self, uint64_t octet ):
 		einz( jdwp_pack_u64(&self.buf, octet) )
+
+	def packObjectId( self, uint64_t id ):
+		einz( jdwp_pack_object_id( &self.buf, id ) )
+	def packFieldId( self, uint64_t id ):
+		einz( jdwp_pack_field_id( &self.buf, id ) )
+	def packMethodId( self, uint64_t id ):
+		einz( jdwp_pack_method_id( &self.buf, id ) )
+	def packTypeId( self, uint64_t id ):
+		einz( jdwp_pack_type_id( &self.buf, id ) )
+	def packFrameId( self, uint64_t id ):
+		einz( jdwp_pack_frame_id( &self.buf, id ) )
 
 	def unpackU8( self, uint8_t byte):
 		cdef uint8_t x
@@ -118,6 +132,27 @@ cdef class JdwpBuffer:
 		einz( jdwp_unpack_u64(&self.buf, &x) )
 		return x
 	
+	def unpackObjectId(self):
+		cdef uint64_t x
+		einz( jdwp_unpack_object_id(&self.buf, &x) )
+		return x
+	def unpackMethodId(self):
+		cdef uint64_t x
+		einz( jdwp_unpack_method_id(&self.buf, &x) )
+		return x
+	def unpackFrameId(self):
+		cdef uint64_t x
+		einz( jdwp_unpack_frame_id(&self.buf, &x) )
+		return x
+	def unpackFieldId(self):
+		cdef uint64_t x
+		einz( jdwp_unpack_field_id(&self.buf, &x) )
+		return x
+	def unpackTypeId(self):
+		cdef uint64_t x
+		einz( jdwp_unpack_type_id(&self.buf, &x) )
+		return x
+
 	def config(self, fSz = None, mSz = None, oSz = None, tSz = None, sSz = None):
 		if fSz is not None: self.buf.fSz = fSz
 		if mSz is not None: self.buf.mSz = mSz
@@ -135,6 +170,9 @@ cdef class JdwpBuffer:
 	cdef preparePack(self, int sz):
 		jdwp_prepare(&self.buf, NULL, sz)					
 
+	cdef prepareUnpack(self, char* csrc, int sz):
+		jdwp_prepare(&self.buf, csrc, sz)					
+
 	def pack(self, fmt, *args):
 		cdef char* cfmt
 		cdef uint64_t val
@@ -151,16 +189,24 @@ cdef class JdwpBuffer:
 			#TODO: HANDLE-ERROR
 		return PyString_FromStringAndSize(self.buf.data, sz)
 	
-	def unpack(self, fmt, data):
+	def unpack(self, fmt, data = None):
 		cdef char* cfmt
 		cdef uint64_t v64
 		cdef uint32_t v32
 		cdef int imax
 		cdef int i
 		cdef char op
-		
+		cdef char* cdata
+		cdef int datasz
+		cdef object val
+
+		if data is not None:
+			datasz = PyString_Size(data)
+			cdata = PyString_AsString(data)
+			self.prepareUnpack(cdata, datasz)
+
 		cfmt = PyString_AsString(fmt)
-		vals = [None,] * len(fmt) #TODO: use python allocation func
+		vals = PyList_New(len(fmt))
 		imax = PyInt_GetMax()
 
 		for 0 <= i < len(fmt):
@@ -168,12 +214,14 @@ cdef class JdwpBuffer:
 			op = cfmt[i]
 			jdwp_unpack(&self.buf, cfmt[i], &v64) #TODO: dispatch on op		
 			if v64 > imax:
-				vals[i] = PyLong_FromLongLong(v64)
+				val = PyLong_FromLongLong(v64)
 			elif v64 < -imax:
-				vals[i] = PyLong_FromLongLong(v64)
+				val = PyLong_FromLongLong(v64)
 			else:
-				vals[i] = PyInt_FromLong(v64)
-		
+				val = PyInt_FromLong(v64)
+			
+			PyList_SetItem(vals, i, val)
+
 		return vals
 
 	# def pack(self, fmt, *args):

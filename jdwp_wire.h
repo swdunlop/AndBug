@@ -34,11 +34,11 @@ typedef struct {
 	uint8_t tSz;
 	uint8_t sSz;
 	int ofs, len, cap;
-	void* data;
+	char* data;
 } jdwp_buffer;
 
 /** creates a new buffer, backed by a copy of len bytes from data, which may be NULL */
-int jdwp_prepare( jdwp_buffer* buf, uint8_t* data, int len );
+int jdwp_prepare( jdwp_buffer* buf, char* data, int len );
 
 /** purges the associated heap memory from a jdwp_buffer */
 void jdwp_purge( jdwp_buffer* buf );
