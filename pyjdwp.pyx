@@ -1,0 +1,203 @@
+
+cdef extern from "jdwp_wire.h":
+	ctypedef unsigned char uint8_t
+	ctypedef unsigned short uint16_t
+	ctypedef unsigned int uint32_t
+	ctypedef unsigned long long uint64_t
+	ctypedef struct jdwp_buffer:
+		uint8_t fSz
+		uint8_t mSz
+		uint8_t oSz
+		uint8_t tSz
+		uint8_t sSz
+		int ofs, len, cap
+		char* data
+
+	int jdwp_config( jdwp_buffer* buf, uint8_t fSz, uint8_t mSz, uint8_t oSz, uint8_t tSz, uint8_t sSz )
+	int jdwp_prepare( jdwp_buffer* buf, uint8_t* data, int len )
+	void jdwp_purge( jdwp_buffer* buf )
+	int jdwp_pack( jdwp_buffer* buf, char format, uint64_t value )
+	int jdwp_unpack( jdwp_buffer* buf, char format, uint64_t* value )
+	int jdwp_size( jdwp_buffer* buf, char* format )
+
+	int jdwp_pack_u8( jdwp_buffer* buf, uint8_t byte)
+	int jdwp_pack_u16( jdwp_buffer* buf, uint16_t word )
+	int jdwp_pack_u32( jdwp_buffer* buf, uint32_t quad )
+	int jdwp_pack_u64( jdwp_buffer* buf, uint64_t octet )
+
+	int jdwp_unpack_u8( jdwp_buffer* buf, uint8_t* byte)
+	int jdwp_unpack_u16( jdwp_buffer* buf, uint16_t* word )
+	int jdwp_unpack_u32( jdwp_buffer* buf, uint32_t* quad )
+	int jdwp_unpack_u64( jdwp_buffer* buf, uint64_t* octet )
+
+	int jdwp_pack_id( jdwp_buffer* buf, uint64_t id, uint8_t sz )
+	int jdwp_pack_object_id( jdwp_buffer* buf, uint64_t id )
+	int jdwp_pack_field_id( jdwp_buffer* buf, uint64_t id )
+	int jdwp_pack_method_id( jdwp_buffer* buf, uint64_t id )
+	int jdwp_pack_type_id( jdwp_buffer* buf, uint64_t id )
+	int jdwp_pack_frame_id( jdwp_buffer* buf, uint64_t id )
+
+	int jdwp_unpack_id( jdwp_buffer* buf, uint64_t* id, uint8_t sz )
+	int jdwp_unpack_object_id( jdwp_buffer* buf, uint64_t* id )
+	int jdwp_unpack_field_id( jdwp_buffer* buf, uint64_t* id )
+	int jdwp_unpack_method_id( jdwp_buffer* buf, uint64_t* id )
+	int jdwp_unpack_type_id( jdwp_buffer* buf, uint64_t* id )
+	int jdwp_unpack_frame_id( jdwp_buffer* buf, uint64_t* id )
+
+class JdwpError(Exception):
+	def __init__(self, code):
+		self.code = code
+		self.mesg = jdwp_en_errors[code]
+
+	def __str__(self):
+		return "jdwp-error (%s): %s" % (self.code, self.mesg)
+
+cdef einz(int code):
+	"jdwp error if not zero"
+	if int == 0: return
+	raise JdwpError(code)
+
+cdef extern from "Python.h":
+	object PyInt_FromLong(long l)
+	object PyLong_FromLongLong(long long l)
+	object PyString_FromStringAndSize(char *s, Py_ssize_t len)
+	char* PyString_AsString(object s)
+	int PyInt_GetMax()
+
+cdef class JdwpBuffer:
+	cdef jdwp_buffer buf
+
+	def __cinit__(self):
+		self.buf.data = NULL;
+
+	def packU8( self, uint8_t byte):
+		einz( jdwp_pack_u8(&self.buf, byte) )
+	def packU16( self, uint16_t word ):
+		einz( jdwp_pack_u16(&self.buf, word) )
+	def packU32( self, uint32_t quad ):
+		einz( jdwp_pack_u32(&self.buf, quad) )
+	def packU64( self, uint64_t octet ):
+		einz( jdwp_pack_u64(&self.buf, octet) )
+
+	def unpackU8( self, uint8_t byte):
+		cdef uint8_t x
+		einz( jdwp_unpack_u8(&self.buf, &x) )
+		return x
+	def unpackU16(self):
+		cdef uint16_t x
+		einz( jdwp_unpack_u16(&self.buf, &x) )
+		return x
+	def unpackU32(self):
+		cdef uint32_t x
+		einz( jdwp_unpack_u32(&self.buf, &x) )
+		return x
+	def unpackU64(self):
+		cdef uint64_t x
+		einz( jdwp_unpack_u64(&self.buf, &x) )
+		return x
+	
+	def config(self, fSz = None, mSz = None, oSz = None, tSz = None, sSz = None):
+		if fSz is not None: self.buf.fSz = fSz
+		if mSz is not None: self.buf.mSz = mSz
+		if oSz is not None: self.buf.oSz = oSz
+		if tSz is not None: self.buf.tSz = tSz
+		if sSz is not None: self.buf.sSz = sSz
+
+	cdef size(self, char* cfmt, args):
+		sz = jdwp_size(&self.buf, cfmt)
+		if sz == -1:
+			#TODO: we'll need support for args to pack strings
+			raise error(2)
+		return sz
+
+	cdef preparePack(self, int sz):
+		jdwp_prepare(&self.buf, NULL, sz)					
+
+	def pack(self, fmt, *args):
+		cdef char* cfmt
+		cdef uint64_t val
+		cdef int i
+		cdef char op
+
+		cfmt = PyString_AsString(fmt)
+		sz = self.size(cfmt, args)
+		self.preparePack(sz)
+		for 0 <= i < len(fmt):
+			val = args[i]
+			op = cfmt[i]
+			jdwp_pack( &self.buf, op, val ) #TODO: dispatch on op
+			#TODO: HANDLE-ERROR
+		return PyString_FromStringAndSize(self.buf.data, sz)
+	
+	def unpack(self, fmt, data):
+		cdef char* cfmt
+		cdef uint64_t v64
+		cdef uint32_t v32
+		cdef int imax
+		cdef int i
+		cdef char op
+		
+		cfmt = PyString_AsString(fmt)
+		vals = [None,] * len(fmt) #TODO: use python allocation func
+		imax = PyInt_GetMax()
+
+		for 0 <= i < len(fmt):
+			v64 = 0
+			op = cfmt[i]
+			jdwp_unpack(&self.buf, cfmt[i], &v64) #TODO: dispatch on op		
+			if v64 > imax:
+				vals[i] = PyLong_FromLongLong(v64)
+			elif v64 < -imax:
+				vals[i] = PyLong_FromLongLong(v64)
+			else:
+				vals[i] = PyInt_FromLong(v64)
+		
+		return vals
+
+	# def pack(self, fmt, *args):
+	# 	cdef char* cfmt
+	# 	cdef uint64_t val
+	# 	cdef int i
+
+	# 	cfmt = PyString_AsString(fmt)
+	# 	sz = jdwp_size(&self.buf, cfmt)
+	# 	#TODO: HANDLE-ERROR
+	# 	jdwp_prepare(&self.buf, NULL, sz)
+	# 	#TODO: HANDLE-ERROR
+	# 	for 0 <= i < len(fmt):
+	# 		val = args[i]
+	# 		jdwp_pack( &self.buf, cfmt[i], val )
+	# 		#TODO: HANDLE-ERROR
+	# 	return PyString_FromStringAndSize(self.buf.data, sz)
+
+	# def unpack(self, fmt, data):
+	# 	cdef char* cfmt
+	# 	cdef uint64_t v64
+	# 	cdef uint32_t v32
+	# 	cdef int imax
+	# 	cdef int i
+
+	# 	cfmt = PyString_AsString(fmt)
+	# 	vals = [None,] * len(fmt)
+	# 	imax = PyInt_GetMax()
+
+	# 	for 0 <= i < len(fmt):
+	# 		v64 = 0
+	# 		jdwp_unpack(&self.buf, cfmt[i], &v64)			
+	# 		if v64 > imax:
+	# 			vals[i] = PyLong_FromLongLong(v64)
+	# 		elif v64 < -imax:
+	# 			vals[i] = PyLong_FromLongLong(v64)
+	# 		else:
+	# 			vals[i] = PyInt_FromLong(v64)
+
+	# 	return vals
+
+
+'''
+PROBLEMS:
+  - using a uint64_t for everything in and out of a pack or unpack causes problems
+    - hard to know whether a return value is a 8, 16, 32 or 64-bit integer
+    - expose individual unpack funcs, lifting them to cdef'd methods, and make unpack use that
+
+'''
