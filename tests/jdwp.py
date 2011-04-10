@@ -2,7 +2,6 @@ import andbug.jdwp
 from unittest import TestCase, main as test_main
 
 class TestJdwp(TestCase):
-
 	def test_pack(self):
 		def newbuf():
 			buf = andbug.jdwp.JdwpBuffer()
