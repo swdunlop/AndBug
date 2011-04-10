@@ -24,6 +24,7 @@
 ## POSSIBILITY OF SUCH DAMAGE.
 
 from threading import Thread
+from andbug.jdwp import JdwpBuffer
 
 class HandshakeError(Exception):
 	def __init__(self):
@@ -31,7 +32,17 @@ class HandshakeError(Exception):
 			self, 'handshake error, received message did not match'
 		)
 
+class ProtocolError(Exception):
+	pass
+
 HANDSHAKE_MSG = 'JDWP-Handshake'
+HEADER_FORMAT = '4412'
+IDSZ_REQ = (
+	'\x00\x00\x00\x0B' # Length
+	'\x00\x00\x00\x01' # Identifier
+	'\x00'             # Flags
+	'\x01\x07'         # Command 1:7
+)
 
 class Process(Thread):
 	'''
@@ -51,9 +62,30 @@ class Process(Thread):
 
 	def __init__(self, read, write):
 		Thread.__init__(self)
+		self.xmitbuf = JdwpBuffer()
+		self.recvbuf = JdwpBuffer()
 		self.read = read
 		self.write = write
 		self.initialized = False
+
+	###################################################### INITIALIZATION STEPS
+	
+	def writeIdSzReq(self):
+		return self.write(IDSZ_REQ)
+
+	def readIdSzRes(self):
+		head = self.readHeader();
+		if head[0] != 20:
+			raise ProtocolError("expected size of an idsize response")
+		if head[2] != 0x80:
+			raise ProtocolError("expected first server message to be a response")
+		if head[1] != 1:
+			raise ProtocolError("expected first server message to be 1")
+
+		sizes = self.recvbuf.unpack( "iiiii", self.readContent(20) )
+		self.recvbuf.config(*sizes)
+		self.xmitbuf.config(*sizes)
+		return None
 
 	def readHandshake(self):
 		data = self.read(len(HANDSHAKE_MSG))
@@ -63,6 +95,18 @@ class Process(Thread):
 	def writeHandshake(self):
 		return self.write(HANDSHAKE_MSG)
 
+	############################################### READING / PROCESSING PACKETS
+	
+	def readHeader(self):
+		'reads a header and returns [size, id, flags, event]'
+		head = self.read(11)
+		data = self.recvbuf.unpack(HEADER_FORMAT, head)
+		data[0] -= 11
+		return data
+	
+	def readContent(self, size):
+		return self.read(size)
+
 	################################################################# THREAD API
 	
 	def start(self):
@@ -70,15 +114,14 @@ class Process(Thread):
 		if not self.initialized:
 			self.writeHandshake()
 			self.readHandshake()
-			#TODO self.writeIdSzReq()
-			#TODO self.readIdSzRes()
+			self.writeIdSzReq()
+			self.readIdSzRes()
 			self.initialized = True
 			Thread.start(self)
 		return None
 
 	def run(self):
-		print "UNIMPLEMENTED" 
-		
+		pass
 		#TODO while True:
 		#TODO 	self.processPacket(*self.readPacket())
 	
