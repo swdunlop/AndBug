@@ -220,13 +220,14 @@ cdef class JdwpBuffer:
 			self.prepareUnpack(data)
 
 		cfmt = PyString_AsString(fmt)
-		vals = PyList_New(len(fmt))
+		vals = [None,] * len(fmt)
 		imax = PyInt_GetMax()
 
 		for 0 <= i < len(fmt):
 			v64 = 0
 			op = cfmt[i]
 			jdwp_unpack(&self.buf, cfmt[i], &v64) #TODO: dispatch on op		
+			
 			if v64 > imax:
 				val = PyLong_FromLongLong(v64)
 			elif v64 < -imax:
@@ -234,7 +235,7 @@ cdef class JdwpBuffer:
 			else:
 				val = PyInt_FromLong(v64)
 			
-			PyList_SetItem(vals, i, val)
+			vals[i] = val
 
 		return vals
 
