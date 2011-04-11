@@ -59,8 +59,18 @@ char *jdwp_en_errors[] = {
 	"insufficient heap memory to store data"
 };
 
-#define REQUIRE_CAP(n) if ((buf->cap - buf->len) < n) return JDWP_NEED_CAP;
+#define REQUIRE_CAP(n) if ((buf->cap - buf->len) < n) if (jdwp_expand(buf)) return JDWP_HEAP_FAULT;
 #define REQUIRE_LEN(n) if ((buf->len - buf->ofs) < n) return JDWP_NEED_LEN;
+
+int jdwp_expand( jdwp_buffer* buf ){
+	int new_cap = buf->cap << 2;
+	if (new_cap < 1024) new_cap = 1024;
+	char* data = realloc(buf->data, new_cap);
+	if (data == NULL) return JDWP_HEAP_FAULT;
+	buf->cap = new_cap;
+	buf->data = data;
+	return 0;
+}
 
 int jdwp_pack_u8( jdwp_buffer* buf, uint8_t byte){
 	REQUIRE_CAP(1);
@@ -151,6 +161,7 @@ int jdwp_prepare( jdwp_buffer* buf, char* data, int len ){
 	if (buf->data == NULL) return JDWP_HEAP_FAULT;
 	if (data == NULL){
 		buf->len = 0;
+		// we also don't zeroize memory; also a character flaw.
 	}else{
 		memcpy(buf->data, data, len);
 		buf->len = len;

@@ -34,6 +34,7 @@ cdef extern from "wire.h":
 		uint8_t sSz
 		int ofs, len, cap
 		char* data
+	char* jdwp_en_errors[]
 
 	int jdwp_config( jdwp_buffer* buf, uint8_t fSz, uint8_t mSz, uint8_t oSz, uint8_t tSz, uint8_t sSz )
 	int jdwp_prepare( jdwp_buffer* buf, char* data, int len )
@@ -76,7 +77,8 @@ class JdwpError(Exception):
 
 cdef einz(int code):
 	"jdwp error if not zero"
-	if int == 0: return
+	if code == 0: return
+	print "ERROR CODE: ", code
 	raise JdwpError(code)
 
 cdef extern from "Python.h":
@@ -115,7 +117,7 @@ cdef class JdwpBuffer:
 	def packFrameId( self, uint64_t id ):
 		einz( jdwp_pack_frame_id( &self.buf, id ) )
 
-	def unpackU8( self, uint8_t byte):
+	def unpackU8(self):
 		cdef uint8_t x
 		einz( jdwp_unpack_u8(&self.buf, &x) )
 		return x
@@ -167,11 +169,27 @@ cdef class JdwpBuffer:
 			raise error(2)
 		return sz
 
-	cdef preparePack(self, int sz):
-		jdwp_prepare(&self.buf, NULL, sz)					
+	def data(self):
+		cdef char* str
+		cdef Py_ssize_t len
 
-	cdef prepareUnpack(self, char* csrc, int sz):
-		jdwp_prepare(&self.buf, csrc, sz)					
+		str = self.buf.data
+		if str == NULL: 
+			return ''
+		str = str + self.buf.ofs
+		len = self.buf.len
+		return PyString_FromStringAndSize(str, len)
+
+	def preparePack(self, sz = 1024):
+		jdwp_prepare(&self.buf, NULL, sz)	
+
+	def prepareUnpack(self, str):
+		cdef char* cstr
+		cdef Py_ssize_t sz
+
+		cstr = PyString_AsString(str)
+		sz = PyString_Size(str)
+		jdwp_prepare(&self.buf, cstr, sz)				
 
 	def pack(self, fmt, *args):
 		cdef char* cfmt
@@ -196,14 +214,10 @@ cdef class JdwpBuffer:
 		cdef int imax
 		cdef int i
 		cdef char op
-		cdef char* cdata
-		cdef int datasz
 		cdef object val
 
 		if data is not None:
-			datasz = PyString_Size(data)
-			cdata = PyString_AsString(data)
-			self.prepareUnpack(cdata, datasz)
+			self.prepareUnpack(data)
 
 		cfmt = PyString_AsString(fmt)
 		vals = PyList_New(len(fmt))

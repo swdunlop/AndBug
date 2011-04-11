@@ -1,12 +1,13 @@
 import andbug.jdwp
 from unittest import TestCase, main as test_main
 
+def newbuf():
+	buf = andbug.jdwp.JdwpBuffer()
+	buf.config(1,2,2,4,8) # f, m, o, t, s
+	return buf
+
 class TestJdwp(TestCase):
 	def test_pack(self):
-		def newbuf():
-			buf = andbug.jdwp.JdwpBuffer()
-			buf.config(1,2,2,4,8) # f, m, o, t, s
-			return buf
 
 		def pack(fmt, pkt, *data):
 			print ":: %r of %r -> %r" % (fmt, data, pkt)
@@ -45,6 +46,13 @@ class TestJdwp(TestCase):
 			"\0\0\0\0\0\0\0\1"
 		), 0, 1, 1, 1, 1)
 
+	def test_incr_pack(self):
+		buf = newbuf()
+		buf.packU8(1)
+		buf.packU16(1)
+		buf.packU32(1)
+		buf.packU64(1)
+		self.assertEqual(buf.data(), "\1\0\1\0\0\0\1\0\0\0\0\0\0\0\1")		
 
 if __name__ == '__main__':
 	test_main()
