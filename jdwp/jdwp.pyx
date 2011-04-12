@@ -81,7 +81,6 @@ class JdwpError(Exception):
 cdef einz(int code):
 	"jdwp error if not zero"
 	if code == 0: return
-	print "ERROR CODE: ", code
 	raise JdwpError(code)
 
 cdef extern from "Python.h":
