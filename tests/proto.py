@@ -1,4 +1,4 @@
-from andbug.proto import Connection, Success, Request, HANDSHAKE_MSG, IDSZ_REQ
+from andbug.proto import Connection, HANDSHAKE_MSG, IDSZ_REQ
 from unittest import TestCase, main as test_main
 from cStringIO import StringIO
 import sys
@@ -38,18 +38,6 @@ def make_conn(harness):
 	conn.start()
 	return conn
 
-class SampleResponse(Success):
-	def __init__(self, val):
-		Success(self)
-		self.val = val
-
-	def unpackFrom(impl, buf):
-		return impl(buf.unpack16())
-	
-class SampleRequest(Request):
-	SUCCESS = SampleResponse
-	CODE = 0x4242
-
 SAMPLE_REQ = (
 	'\x00\x00\x00\x0B' # Length
 	'\x00\x00\x00\x03' # Identifier
@@ -72,20 +60,6 @@ class TestConnection(TestCase):
 		])
 		p = make_conn(h)
 		self.assertEqual(True, p.initialized)
-
-	'''
-	def test_pack(self):
-		h = IoHarness( self, [
-			(HANDSHAKE_MSG, HANDSHAKE_MSG),
-			(IDSZ_REQ, IDSZ_RES),
-			(SAMPLE_REQ, SAMPLE_RES)
-		])
-		p = make_conn(h)
-		req = SampleRequest()
-		res = p.request(req, 3)
-		self.assertEqual(res[0], 0)
-		self.assertEqual(res[1], '')
-	'''
 
 if __name__ == '__main__':
 	test_main()
