@@ -170,8 +170,8 @@ class Connection(Thread):
 		else:
 			self.processRequest(ident, code, data)
 
-	def processBind(self, ident, succ, fail, chan):
-		self.bindmap[ident] = (succ, fail, chan)
+	def processBind(self, ident, chan):
+		self.bindmap[ident] = chan
 	
 	def processRequest(self, ident, code, data):
 		'used internally by the processor; must have recv control'
@@ -179,17 +179,14 @@ class Connection(Thread):
 		
 	def processResponse(self, ident, code, data):
 		'used internally by the processor; must have recv control'		
-		succ, fail, chan = self.bindmap.pop(ident, (None, None, None))
+		chan = self.bindmap.pop(ident, None)
 		
 		if not chan: return
-		impl = fail if code else succ
+		buf = JdwpBuffer()
+		buf.config(*self.sizes)
+		buf.prepareUnpack(data)
+		chan.put((code, buf))
 
-		if impl:
-			self.recvbuf.prepareUnpack(data)
-			data = impl(self.recvbuf)
-
-		chan.put(data)
-		
 	def processEvent(self, data):
 		pass #TODO
 
@@ -201,36 +198,34 @@ class Connection(Thread):
 		self.nextId += 2
 		return ident
 
-	def writeContent(self, ident, content):
+	def writeContent(self, ident, flags, code, body):
 		'used internally by the processor; must have xmit control'
 
-		code = content.code
-		flags = content.flags
-		self.xmitbuf.preparePack()
-		content.packTo(self.xmitbuf)
-		body = self.xmitbuf.data()
 		size = len(body) + 11
+		self.xmitbuf.preparePack(11)
 		data = self.xmitbuf.pack(
 			HEADER_FORMAT, size, ident, flags, code
 		)
 		self.write(data)
 		return self.write(body)
 
-	def request(self, req, timeout=None):
+	def request(self, code, data='', timeout=None):
 		'send a request, then waits for a response; returns response'
 		queue = Queue()
 
 		with self.xmitlock:
 			ident = self.acquireIdent()
-			self.bindqueue.put((
-				ident, req.unpackSuccessFrom, req.unpackFailureFrom, queue
-			))
-			self.writeContent(ident, req)
+			self.bindqueue.put((ident, queue))
+			self.writeContent(ident, 0x0, code, data)
 		
 		try:
 			return queue.get(1, timeout)
 		except EmptyQueue:
 			return None
+
+	def buffer(self):
+		'returns a JdwpBuffer configured for this connection'
+		return JdwpBuffer.config(*self.size)
 	
 	################################################################# THREAD API
 	
@@ -254,96 +249,3 @@ class Connection(Thread):
 		except EOF:
 			return
 	
-class Element(object):
-	'''
-	Elements, such as messages or entries found in messages, can be packed to
-	a JDWP buffer, or unpacked from them.
-	'''
-
-	def __init__(self):
-		pass
-
-	def packTo(self, buf):
-		'packs data associated with this element into the buffer'
-		pass
-
-	@classmethod
-	def unpackFrom(impl, buf):
-		'creates a new instance from the contents of the buffer'
-		return impl()
-		#TEST
- 
-class Content(Element):
-	'''
-	A JDWP packet consists of a Header and an optional Content.  Descendants
-	of the Content class do not manage the Header portion -- the Connectionor will
-	derive this prior to unpackFrom and after packTo.
-	'''
-
-	def __init__(self):
-		Element.__init__(self)
-		
-	@property
-	def code(self):
-		'''
-		specifies either the content of the cmdset and cmd fields, or the 
-		response code
-		'''
-		return self.CODE
-
-	@property
-	def flags(self):
-		'returns the static FLAGS associated with this Content type'
-		return self.FLAGS
-
-class Response(Content):
-	'''
-	Expresses a response to a JDWP request; shared base of Failure and Success
-	'''
-	FLAGS = 0x80
-	pass #TODO
-
-class Failure(Response):
-	'''
-	Failures are error responses to a request; each individual Failure class
-	should specify its associated CODE, as specified in JVMDI.
-	'''
-	pass #TODO
-
-class Success(Response):
-	'''
-	Successes are responses to a request; since the Connectionor cannot determine
-	the correct class of a Success without contextual information about the
-	Request, each Request should have a associated unpackSuccess function.
-	'''
-	CODE = 0x0000
-
-class GenericSuccess(Success):
-	pass
-
-class GenericFailure(Failure):
-	pass
-
-class Request(Content):
-	'''
-	Requests made from the debugger to the process should have an associated
-	SUCCESS class that supports the unpackFrom class method.
-	'''
-	FLAGS = 0x00
-	SUCCESS = GenericSuccess
-	FAILURE = GenericFailure
-
-	def unpackSuccessFrom(self, buf):
-		return self.SUCCESS.unpackFrom(buf)
-
-	def unpackFailureFrom(self, buf):
-		return self.FAILURE.unpackFrom(buf)
-
-class Event(Request):
-	'''
-	Events are a special case of Request, where the debugger recieves a 
-	"request" from the process.  Events are unusual, in that a number of
-	of them are collected into a single request, and that no response is
-	expected by the process from the debugger.
-	'''
-	pass #TODO

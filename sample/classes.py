@@ -1,4 +1,5 @@
 import andbug, sys
+from collections import namedtuple
 
 usage = '''
 %s <portno>
@@ -17,35 +18,21 @@ except:
 
 c = andbug.connect('127.0.0.1', int(sys.argv[1]))
 
-class ListClassesSuccEntry(andbug.process.Element):
-	@classmethod
-	def unpackFrom(impl, buf):
-		return impl(*buf.unpack("1t$$i"))
+class_entry = namedtuple('class_entry', (
+	'tag', 'ref', 'jni', 'gen', 'status'
+))
 
-	def __init__(self, tag, ref, jni, gen, status):
-		self.tag = tag # kind of reference type
-		self.ref = ref # loaded reference type
-		self.jni = jni # jniSignature
-		self.gen = gen # genericSignature 
-		self.status = status # (ERROR | INITIALIZED | PREPARED | VERIFIED)
+def unpack_succ(buf):
+	ct = buf.unpackU32()
+	ls = [None,] * ct
+	for i in range(0, ct):
+		ls[i] = class_entry(*buf.unpack("1t$$i"))
+	return ls
 
-class ListClassesSucc(andbug.process.Success):
-	@classmethod
-	def unpackFrom(impl, buf):
-		def unpackEntry(ix):
-			return ListClassesSuccEntry.unpackFrom(buf)
+code, buf = c.request(0x0114)
+if code:
+	print "PROTOCOL-ERROR:", code
+	sys.exit(1)
 
-		count = buf.unpackU32()
-		entries = list(map(unpackEntry, range(0, count)))
-		return impl(entries)
-
-	def __init__(self, entries):
-		self.entries = entries
-
-class ListClasses(andbug.process.Request):
-	CODE = 0x0114
-	SUCCESS = ListClassesSucc
-
-r = c.request(ListClasses())
-for entry in r.entries:
+for entry in unpack_succ(buf):
 	print entry.jni
