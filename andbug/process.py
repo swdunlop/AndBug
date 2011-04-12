@@ -170,8 +170,8 @@ class Process(Thread):
 		else:
 			self.processRequest(ident, code, data)
 
-	def processBind(self, ident, chan):
-		self.bindmap[ident] = chan
+	def processBind(self, ident, succ, fail, chan):
+		self.bindmap[ident] = (succ, fail, chan)
 	
 	def processRequest(self, ident, code, data):
 		'used internally by the processor; must have recv control'
@@ -179,11 +179,17 @@ class Process(Thread):
 		
 	def processResponse(self, ident, code, data):
 		'used internally by the processor; must have recv control'		
-		chan = self.bindmap.pop(ident, None)
+		succ, fail, chan = self.bindmap.pop(ident, (None, None, None))
+		
+		if not chan: return
+		impl = fail if code else succ
 
-		if chan:
-			chan.put((code, data))
+		if impl:
+			self.recvbuf.prepareUnpack(data)
+			data = impl(self.recvbuf)
 
+		chan.put(data)
+		
 	def processEvent(self, data):
 		pass #TODO
 
@@ -211,28 +217,20 @@ class Process(Thread):
 		return self.write(body)
 
 	def request(self, req, timeout=None):
-		'send a request, then waits for a response; returns (code, data)'
+		'send a request, then waits for a response; returns response'
 		queue = Queue()
 
 		with self.xmitlock:
 			ident = self.acquireIdent()
-			self.bindqueue.put((ident, queue))
+			self.bindqueue.put((
+				ident, req.unpackSuccessFrom, req.unpackFailureFrom, queue
+			))
 			self.writeContent(ident, req)
 		
 		try:
-			code, data = queue.get(1, timeout)
+			return queue.get(1, timeout)
 		except EmptyQueue:
 			return None
-
-		buf = JdwpBuffer()
-		buf.config(*self.sizes)
-		buf.prepareUnpack(data)
-		print len(data)
-
-		if code == 0:
-			return req.unpackSuccessFrom(buf)
-		else:
-			raise req.unpackFailureFrom(buf)
 	
 	################################################################# THREAD API
 	
