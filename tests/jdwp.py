@@ -8,7 +8,6 @@ def newbuf():
 
 class TestJdwp(TestCase):
 	def test_pack(self):
-
 		def pack(fmt, pkt, *data):
 			print ":: %r of %r -> %r" % (fmt, data, pkt)
 			data = list(data)
@@ -30,7 +29,8 @@ class TestJdwp(TestCase):
 		pack("o", "\0\1", 1)
 		pack("t", "\0\0\0\1", 1)
 		pack("s", "\0\0\0\0\0\0\0\1", 1)
-
+		pack("$", "\0\0\0\4abcd", "abcd")
+		
 		pack("1248", (
 			"\0"
 			"\0\1"

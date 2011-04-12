@@ -41,7 +41,7 @@ cdef extern from "wire.h":
 	void jdwp_purge( jdwp_buffer* buf )
 	int jdwp_pack( jdwp_buffer* buf, char format, uint64_t value )
 	int jdwp_unpack( jdwp_buffer* buf, char format, uint64_t* value )
-	int jdwp_size( jdwp_buffer* buf, char* format )
+	int jdwp_size( jdwp_buffer* buf, char format )
 
 	int jdwp_pack_u8( jdwp_buffer* buf, uint8_t byte)
 	int jdwp_pack_u16( jdwp_buffer* buf, uint16_t word )
@@ -66,6 +66,9 @@ cdef extern from "wire.h":
 	int jdwp_unpack_method_id( jdwp_buffer* buf, uint64_t* id )
 	int jdwp_unpack_type_id( jdwp_buffer* buf, uint64_t* id )
 	int jdwp_unpack_frame_id( jdwp_buffer* buf, uint64_t* id )
+
+	int jdwp_pack_str( jdwp_buffer* buf, uint32_t size, char* data )
+	int jdwp_unpack_str( jdwp_buffer* buf, uint32_t *size, char** data )
 
 class JdwpError(Exception):
 	def __init__(self, code):
@@ -158,6 +161,20 @@ cdef class JdwpBuffer:
 		einz( jdwp_unpack_type_id(&self.buf, &x) )
 		return x
 
+	def unpackStr(self):
+		cdef uint32_t sz
+		cdef char* str
+		einz( jdwp_unpack_str(&self.buf, &sz, &str) )
+		return PyString_FromStringAndSize(str, sz)
+	
+	def packStr(self, str):
+		cdef char* cstr
+		cdef Py_ssize_t sz
+		cstr = PyString_AsString(str)
+		sz = PyString_Size(str)
+		einz( jdwp_pack_str(&self.buf, sz, cstr) )
+
+				
 	def config(self, fSz = None, mSz = None, oSz = None, tSz = None, sSz = None):
 		if fSz is not None: self.buf.fSz = fSz
 		if mSz is not None: self.buf.mSz = mSz
@@ -165,11 +182,26 @@ cdef class JdwpBuffer:
 		if tSz is not None: self.buf.tSz = tSz
 		if sSz is not None: self.buf.sSz = sSz
 
-	cdef size(self, char* cfmt, args):
-		sz = jdwp_size(&self.buf, cfmt)
-		if sz == -1:
-			#TODO: we'll need support for args to pack strings
-			raise error(2)
+	cdef size(self, fmt, args):
+		cdef int i
+		cdef int sz
+		cdef char op
+		cdef char* cfmt
+		cfmt = fmt
+
+		sz = 0
+
+		for 0 <= i < len(fmt):
+			val = args[i]
+			op = cfmt[i]
+			if op == c'$':
+				sz += 4 + len(val)
+			else:
+				inc = jdwp_size(&self.buf, op)
+				if inc == 0: 
+					raise JdwpError(2)
+				sz += inc
+
 		return sz
 
 	def data(self):
@@ -204,9 +236,12 @@ cdef class JdwpBuffer:
 		sz = self.size(cfmt, args)
 		self.preparePack(sz)
 		for 0 <= i < len(fmt):
-			val = args[i]
 			op = cfmt[i]
-			jdwp_pack( &self.buf, op, val ) #TODO: dispatch on op
+			if op == c'$':
+				self.packStr(args[i])
+			else:
+				val = args[i]
+				jdwp_pack( &self.buf, op, val ) #TODO: dispatch on op
 			#TODO: HANDLE-ERROR
 		return PyString_FromStringAndSize(self.buf.data, sz)
 	
@@ -229,15 +264,18 @@ cdef class JdwpBuffer:
 		for 0 <= i < len(fmt):
 			v64 = 0
 			op = cfmt[i]
-			jdwp_unpack(&self.buf, cfmt[i], &v64) #TODO: dispatch on op		
-			
-			if v64 > imax:
-				val = PyLong_FromLongLong(v64)
-			elif v64 < -imax:
-				val = PyLong_FromLongLong(v64)
+			if op == c'$':
+				val = self.unpackStr()
 			else:
-				val = PyInt_FromLong(v64)
-			
+				jdwp_unpack(&self.buf, cfmt[i], &v64) #TODO: dispatch on op		
+				
+				if v64 > imax:
+					val = PyLong_FromLongLong(v64)
+				elif v64 < -imax:
+					val = PyLong_FromLongLong(v64)
+				else:
+					val = PyInt_FromLong(v64)
+				
 			vals[i] = val
 
 		return vals

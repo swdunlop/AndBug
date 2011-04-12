@@ -4,11 +4,11 @@
    modification, are permitted provided that the following conditions are met:
    
       1. Redistributions of source code must retain the above copyright notice, 
-         this list of conditions and the following disclaimer.
+	 this list of conditions and the following disclaimer.
    
       2. Redistributions in binary form must reproduce the above copyright 
-         notice, this list of conditions and the following disclaimer in the 
-         documentation and/or other materials provided with the distribution.
+	 notice, this list of conditions and the following disclaimer in the 
+	 documentation and/or other materials provided with the distribution.
    
    THIS SOFTWARE IS PROVIDED BY SCOTT DUNLOP ``AS IS'' AND ANY EXPRESS OR 
    IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES 
@@ -59,17 +59,32 @@ char *jdwp_en_errors[] = {
 	"insufficient heap memory to store data"
 };
 
-#define REQUIRE_CAP(n) if ((buf->cap - buf->len) < n) if (jdwp_expand(buf)) return JDWP_HEAP_FAULT;
+#define REQUIRE_CAP(n) if (jdwp_expand(buf, (n))) return JDWP_HEAP_FAULT;
 #define REQUIRE_LEN(n) if ((buf->len - buf->ofs) < n) return JDWP_NEED_LEN;
 
-int jdwp_expand( jdwp_buffer* buf ){
-	int new_cap = buf->cap << 2;
-	if (new_cap < 1024) new_cap = 1024;
-	char* data = realloc(buf->data, new_cap);
+int jdwp_expand( jdwp_buffer* buf, int req ){
+	int cap = cap;
+	req += buf->len;
+	if (req < cap) return 0; // we'll be fine.
+	if (cap < 1024) cap = 1024; // jumps up to 1k to reduce flutter
+again:
+	cap <<= 2;
+	if (cap < req) goto again;
+
+	char* data = realloc(buf->data, cap);
 	if (data == NULL) return JDWP_HEAP_FAULT;
-	buf->cap = new_cap;
+	buf->cap = cap;
 	buf->data = data;
 	return 0;
+}
+
+int jdwp_pack_str( jdwp_buffer* buf, uint32_t size, char* data ){
+	REQUIRE_CAP(size + 4);
+	jdwp_pack_u32(buf, size);
+	memcpy(buf->data + buf->len, data, size);
+	buf->len += size;
+	buf->len -= size;
+    return 0;
 }
 
 int jdwp_pack_u8( jdwp_buffer* buf, uint8_t byte){
@@ -119,6 +134,16 @@ int jdwp_unpack_u64( jdwp_buffer* buf, uint64_t* octet ){
 	*octet = ntohll(*(uint64_t*)(buf->data + buf->ofs));
 	buf->ofs += 8;
 	return 0;
+}
+int jdwp_unpack_str( jdwp_buffer* buf, uint32_t *size, char** data ){
+    uint32_t sz;
+    int err = jdwp_unpack_u32(buf, &sz);
+    if (err) return err;
+    REQUIRE_LEN(sz);
+    *size = sz;
+    *data = buf->data + buf->ofs;
+    buf->ofs += sz;
+    return 0;
 }
 
 int jdwp_pack_id( jdwp_buffer* buf, uint64_t id, uint8_t sz ){
@@ -235,34 +260,32 @@ int jdwp_unpack( jdwp_buffer* buf, char format, uint64_t *value ){
 	}
 }
 
-int jdwp_size( jdwp_buffer* buf, const char* format ){	
-	int sz = 0;
-
-	for(;;)	switch (*(format++)) {
+int jdwp_size( jdwp_buffer* buf, char format ){	
+	switch (format) {
 	case 0:
-		return sz;
+		return 0;
 	case '1':
-		sz += 1; break;
+		return 1;
 	case '2':
-		sz += 2; break;
+		return 2;
 	case 'i':
 	case '4':
-		sz += 4; break;
+		return 4;
 	case 'l':
 	case '8':
-		sz += 8; break;
+		return 8;
 	case 'o':
-		sz += buf->oSz; break;
+		return buf->oSz;
 	case 't':
-		sz += buf->tSz; break;
+		return buf->tSz;
 	case 'f':
-		sz += buf->fSz; break;
+		return buf->fSz;
 	case 's':
-		sz += buf->sSz; break;
+		return buf->sSz;
 	case 'm':
-		sz += buf->mSz; break;
+		return buf->mSz;
 	default:
-		return -1;
+		return 0;
 	}
 }
 

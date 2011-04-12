@@ -88,6 +88,9 @@ int jdwp_pack_type_id( jdwp_buffer* buf, uint64_t id );
 /** packs a stack (frame) id into the buffer */
 int jdwp_pack_frame_id( jdwp_buffer* buf, uint64_t id );
 
+/** packs a string into the buffer */
+int jdwp_pack_str( jdwp_buffer* buf, uint32_t size, char* data );
+
 /** unpacks an object id from the buffer */
 int jdwp_unpack_object_id( jdwp_buffer* buf, uint64_t* id );
 
@@ -103,6 +106,9 @@ int jdwp_unpack_type_id( jdwp_buffer* buf, uint64_t* id );
 /** unpacks a frame id from the buffer */
 int jdwp_unpack_frame_id( jdwp_buffer* buf, uint64_t* id );
 
+/** unpacks a string from the buffer */
+int jdwp_unpack_str( jdwp_buffer* buf, uint32_t *size, char** data );
+
 /** packs fields into the current buf, writing field by field, and returning when complete */
 int jdwp_pack( jdwp_buffer* buf, char format, uint64_t value );
 
@@ -110,7 +116,7 @@ int jdwp_pack( jdwp_buffer* buf, char format, uint64_t value );
 int jdwp_unpack( jdwp_buffer* buf, char format, uint64_t* value );
 
 /** returns the size that a format would produce. */
-int jdwp_size( jdwp_buffer* buf, const char* format );
+int jdwp_size( jdwp_buffer* buf, const char format );
 
 /* PACK FORMAT STRINGS:
 	1 -- unsigned 1-byte ordinal
@@ -124,6 +130,7 @@ int jdwp_size( jdwp_buffer* buf, const char* format );
 	f -- field id, size config dependent
 	s -- stack id, size config dependent
 	m -- method id, size config dependent
+	$ -- string, size length dependent
 */
-	
+
 #endif
