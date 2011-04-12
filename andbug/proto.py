@@ -75,13 +75,13 @@ def connect(addr, portno, trace=False):
 		except Exception as exc:
 			raise EOF(exc)
 		
-	p = Process(read, write)
+	p = Connection(read, write)
 	p.start()
 	return p
 
-class Process(Thread):
+class Connection(Thread):
 	'''
-	The JDWP Processor is a thread which abstracts the asynchronous JDWP protocol
+	The JDWP Connectionor is a thread which abstracts the asynchronous JDWP protocol
 	into a more synchronous one.  The thread will listen for packets using the
 	supplied read function, and transmit them using the write function.  
 
@@ -89,7 +89,7 @@ class Process(Thread):
 	used to protect the write function from concurrent access.  The requesting
 	thread is then blocked waiting on a response from the processor thread.
 
-	The Processor will repeatedly use the read function to receive packets, which
+	The Connectionor will repeatedly use the read function to receive packets, which
 	will be dispatched based on whether they are responses to a previous request,
 	or events.  Responses to requests will cause the requesting thread to be
 	unblocked, thus simulating a synchronous request.
@@ -276,7 +276,7 @@ class Element(object):
 class Content(Element):
 	'''
 	A JDWP packet consists of a Header and an optional Content.  Descendants
-	of the Content class do not manage the Header portion -- the Processor will
+	of the Content class do not manage the Header portion -- the Connectionor will
 	derive this prior to unpackFrom and after packTo.
 	'''
 
@@ -312,7 +312,7 @@ class Failure(Response):
 
 class Success(Response):
 	'''
-	Successes are responses to a request; since the Processor cannot determine
+	Successes are responses to a request; since the Connectionor cannot determine
 	the correct class of a Success without contextual information about the
 	Request, each Request should have a associated unpackSuccess function.
 	'''

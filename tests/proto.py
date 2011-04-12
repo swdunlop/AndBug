@@ -1,4 +1,4 @@
-from andbug.process import Process, Success, Request, HANDSHAKE_MSG, IDSZ_REQ
+from andbug.proto import Connection, Success, Request, HANDSHAKE_MSG, IDSZ_REQ
 from unittest import TestCase, main as test_main
 from cStringIO import StringIO
 import sys
@@ -33,10 +33,10 @@ class IoHarness:
 		exp = self.writebuf.read(len(data))
 		self.test.assertEqual(exp, data)
 
-def make_proc(harness):
-	proc = Process(harness.read, harness.write)
-	proc.start()
-	return proc
+def make_conn(harness):
+	conn = Connection(harness.read, harness.write)
+	conn.start()
+	return conn
 
 class SampleResponse(Success):
 	def __init__(self, val):
@@ -64,13 +64,13 @@ SAMPLE_RES = (
 	'\x00\x00'         # Success
 )
 
-class TestProcess(TestCase):
+class TestConnection(TestCase):
 	def test_start(self):
 		h = IoHarness( self, [
 			(HANDSHAKE_MSG, HANDSHAKE_MSG),
 			(IDSZ_REQ, IDSZ_RES)
 		])
-		p = make_proc(h)
+		p = make_conn(h)
 		self.assertEqual(True, p.initialized)
 
 	'''
@@ -80,7 +80,7 @@ class TestProcess(TestCase):
 			(IDSZ_REQ, IDSZ_RES),
 			(SAMPLE_REQ, SAMPLE_RES)
 		])
-		p = make_proc(h)
+		p = make_conn(h)
 		req = SampleRequest()
 		res = p.request(req, 3)
 		self.assertEqual(res[0], 0)

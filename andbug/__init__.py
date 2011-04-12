@@ -1,3 +1,3 @@
-import jdwp, process
-connect = process.connect
+import jdwp, proto
+connect = proto.connect
 
