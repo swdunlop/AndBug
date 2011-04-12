@@ -1,3 +1,3 @@
-import jdwp, proto
+import jdwp, proto, log
 connect = proto.connect
 

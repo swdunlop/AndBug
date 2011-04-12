@@ -23,7 +23,7 @@
 ## ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
 ## POSSIBILITY OF SUCH DAMAGE.
    
-import os, sys
+import os, sys, time
 from cStringIO import StringIO
 
 def blocks(seq, sz):
@@ -145,10 +145,12 @@ stderr = LogWriter(sys.stderr)
 stdout = LogWriter(sys.stdout)
 
 def error(tag, meta, data = None):
-	stderr.writeEvent(LogEvent(now, meta, data))
+	now = int(time.time())
+	stderr.writeEvent(LogEvent(now, tag, meta, data))
 
 def info(tag, meta, data = None):
-	stdout.writeEvent(LogEvent(now, meta, data))
+	now = int(time.time())
+	stdout.writeEvent(LogEvent(now, tag, meta, data))
 
 def read_log(path=None, file=None):
 	if path is None:
