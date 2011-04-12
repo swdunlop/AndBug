@@ -23,14 +23,15 @@
 ## ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
 ## POSSIBILITY OF SUCH DAMAGE.
 
+import socket
 from threading import Thread, Lock
 from andbug.jdwp import JdwpBuffer
 from Queue import Queue, Empty as EmptyQueue
 
 class EOF(Exception):
-	def __init__(self):
+	def __init__(self, inner = None):
 		Exception.__init__(
-			self, "EOF"
+			self, str(inner) if inner else "EOF"
 		)
 
 class HandshakeError(Exception):
@@ -50,6 +51,32 @@ IDSZ_REQ = (
 	'\x00'             # Flags
 	'\x01\x07'         # Command 1:7
 )
+
+def connect(addr, portno, trace=False):
+	conn = socket.create_connection((addr, portno))
+
+	def read(amt):
+		req = amt
+		buf = ''
+		while req:
+			pkt = conn.recv(req)
+			if not pkt: raise EOF()
+			buf += pkt
+			req -= len(pkt)
+		if trace:
+			print ":: RECV:", repr(buf)
+		return buf 
+	
+	def write(data):
+		try:
+			if trace:
+				print ":: XMIT:", repr(data)
+			conn.sendall(data)
+		except Exception as exc:
+			raise EOF(exc)
+		
+	p = Process(read, write)
+	return p.start()
 
 class Process(Thread):
 	'''
