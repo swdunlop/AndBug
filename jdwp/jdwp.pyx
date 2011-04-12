@@ -97,6 +97,9 @@ cdef class JdwpBuffer:
 	def __cinit__(self):
 		self.buf.data = NULL;
 
+	def __dealloc__(self):
+		jdwp_purge(&self.buf)
+		
 	def packU8( self, uint8_t byte):
 		einz( jdwp_pack_u8(&self.buf, byte) )
 	def packU16( self, uint16_t word ):
