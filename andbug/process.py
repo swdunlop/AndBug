@@ -76,7 +76,8 @@ def connect(addr, portno, trace=False):
 			raise EOF(exc)
 		
 	p = Process(read, write)
-	return p.start()
+	p.start()
+	return p
 
 class Process(Thread):
 	'''
@@ -127,6 +128,7 @@ class Process(Thread):
 			raise ProtocolError('expected first server message to be 1')
 
 		sizes = self.recvbuf.unpack( 'iiiii', self.read(20) )
+		self.sizes = sizes
 		self.recvbuf.config(*sizes)
 		self.xmitbuf.config(*sizes)
 		return None
@@ -218,10 +220,20 @@ class Process(Thread):
 			self.writeContent(ident, req)
 		
 		try:
-			return queue.get(1, timeout)
+			code, data = queue.get(1, timeout)
 		except EmptyQueue:
 			return None
 
+		buf = JdwpBuffer()
+		buf.config(*self.sizes)
+		buf.prepareUnpack(data)
+		print len(data)
+
+		if code == 0:
+			return req.unpackSuccessFrom(buf)
+		else:
+			raise req.unpackFailureFrom(buf)
+	
 	################################################################# THREAD API
 	
 	def start(self):
@@ -308,17 +320,26 @@ class Success(Response):
 	'''
 	CODE = 0x0000
 
+class GenericSuccess(Success):
+	pass
+
+class GenericFailure(Failure):
+	pass
+
 class Request(Content):
 	'''
 	Requests made from the debugger to the process should have an associated
 	SUCCESS class that supports the unpackFrom class method.
 	'''
 	FLAGS = 0x00
-	SUCCESS = None
+	SUCCESS = GenericSuccess
+	FAILURE = GenericFailure
 
 	def unpackSuccessFrom(self, buf):
 		return self.SUCCESS.unpackFrom(buf)
-		#TEST
+
+	def unpackFailureFrom(self, buf):
+		return self.FAILURE.unpackFrom(buf)
 
 class Event(Request):
 	'''
