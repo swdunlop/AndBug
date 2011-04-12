@@ -57,6 +57,13 @@ SAMPLE_REQ = (
 	'\x42\x42'         # Not an error
 )
 
+SAMPLE_RES = (
+	'\x00\x00\x00\x0B' # Length
+	'\x00\x00\x00\x03' # Identifier
+	'\x80'             # Response
+	'\x00\x00'         # Success
+)
+
 class TestProcess(TestCase):
 	def test_start(self):
 		h = IoHarness( self, [
@@ -66,15 +73,19 @@ class TestProcess(TestCase):
 		p = make_proc(h)
 		self.assertEqual(True, p.initialized)
 
+	'''
 	def test_pack(self):
 		h = IoHarness( self, [
 			(HANDSHAKE_MSG, HANDSHAKE_MSG),
 			(IDSZ_REQ, IDSZ_RES),
-			(SAMPLE_REQ, '')
+			(SAMPLE_REQ, SAMPLE_RES)
 		])
 		p = make_proc(h)
 		req = SampleRequest()
-		p.writeContent(req)
+		res = p.request(req, 3)
+		self.assertEqual(res[0], 0)
+		self.assertEqual(res[1], '')
+	'''
 
 if __name__ == '__main__':
 	test_main()

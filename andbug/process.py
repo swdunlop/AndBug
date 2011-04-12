@@ -23,12 +23,19 @@
 ## ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
 ## POSSIBILITY OF SUCH DAMAGE.
 
-from threading import Thread
+from threading import Thread, Lock
 from andbug.jdwp import JdwpBuffer
+from Queue import Queue, Empty as EmptyQueue
+
+class EOF(Exception):
+	def __init__(self):
+		Exception.__init__(
+			self, "EOF"
+		)
 
 class HandshakeError(Exception):
 	def __init__(self):
-		Error.__init__(
+		Exception.__init__(
 			self, 'handshake error, received message did not match'
 		)
 
@@ -64,10 +71,19 @@ class Process(Thread):
 		Thread.__init__(self)
 		self.xmitbuf = JdwpBuffer()
 		self.recvbuf = JdwpBuffer()
-		self.read = read
+		self._read = read
 		self.write = write
 		self.initialized = False
 		self.nextId = 3
+		self.bindqueue = Queue()
+		self.bindmap = {}
+		self.xmitlock = Lock()
+
+	def read(self, sz):
+		if sz == 0: return ''
+		pkt = self._read(sz)
+		if not len(pkt): raise EOF()
+		return pkt
 
 	###################################################### INITIALIZATION STEPS
 	
@@ -105,39 +121,85 @@ class Process(Thread):
 		data[0] -= 11
 		return data
 	
-	def readContent(self, size):
-		return self.read(size)
+	def process(self):
+		'invoked repeatedly by the processing thread'
+
+		size, ident, flags, code = self.readHeader() #TODO: HANDLE CLOSE
+		data = self.read(size) #TODO: HANDLE CLOSE
+		try: # We process binds after receiving messages to prevent a race
+			while True:
+				self.processBind(*self.bindqueue.get(False))
+		except EmptyQueue:
+			pass
+
+		#TODO: update binds with all from bindqueue
+		
+		if flags == 0x80:
+			self.processResponse(ident, code, data)
+		elif code == 0x4064:
+			self.processEvent(data)
+		else:
+			self.processRequest(ident, code, data)
+
+	def processBind(self, ident, chan):
+		self.bindmap[ident] = chan
+	
+	def processRequest(self, ident, code, data):
+		'used internally by the processor; must have recv control'
+		pass #TODO
+		
+	def processResponse(self, ident, code, data):
+		'used internally by the processor; must have recv control'		
+		chan = self.bindmap.pop(ident, None)
+
+		if chan:
+			chan.put((code, data))
+
+	def processEvent(self, data):
+		pass #TODO
 
 	####################################################### TRANSMITTING PACKETS
 	
-	def writeHeader(self, size, flags, event):
-		'used internally by the processor'
-
+	def acquireIdent(self):
+		'used internally by the processor; must have xmit control'
 		ident = self.nextId
-		self.nextId += 2		
-		size += 11
-		data = self.xmitbuf.pack(
-			HEADER_FORMAT, size, ident, flags, event
-		)
-		self.write(data)
+		self.nextId += 2
 		return ident
 
-	def writeContent(self, content):
-		'sends a response or request'
+	def writeContent(self, ident, content):
+		'used internally by the processor; must have xmit control'
 
 		code = content.code
 		flags = content.flags
 		self.xmitbuf.preparePack()
 		content.packTo(self.xmitbuf)
-		data = self.xmitbuf.data()
-		size = len(data)
-		self.writeHeader( size, flags, code )
-		return self.write(data)
+		body = self.xmitbuf.data()
+		size = len(body) + 11
+		data = self.xmitbuf.pack(
+			HEADER_FORMAT, size, ident, flags, code
+		)
+		self.write(data)
+		return self.write(body)
+
+	def request(self, req, timeout=None):
+		'send a request, then waits for a response; returns (code, data)'
+		queue = Queue()
+
+		with self.xmitlock:
+			ident = self.acquireIdent()
+			self.bindqueue.put((ident, queue))
+			self.writeContent(ident, req)
+		
+		try:
+			return queue.get(1, timeout)
+		except EmptyQueue:
+			return None
 
 	################################################################# THREAD API
 	
 	def start(self):
 		'performs handshaking and solicits configuration information'
+		self.daemon = True
 
 		if not self.initialized:
 			self.writeHandshake()
@@ -149,9 +211,11 @@ class Process(Thread):
 		return None
 
 	def run(self):
-		pass
-		#TODO while True:
-		#TODO 	self.processPacket(*self.readPacket())
+		try:
+			while True:
+				self.process()
+		except EOF:
+			return
 	
 class Element(object):
 	'''
