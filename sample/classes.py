@@ -1,38 +1,49 @@
-import andbug, sys
-from collections import namedtuple
+## Copyright 2011, Scott W. Dunlop <swdunlop@gmail.com> All rights reserved.
+##
+## Redistribution and use in source and binary forms, with or without 
+## modification, are permitted provided that the following conditions are 
+## met:
+## 
+##    1. Redistributions of source code must retain the above copyright 
+##       notice, this list of conditions and the following disclaimer.
+## 
+##    2. Redistributions in binary form must reproduce the above copyright 
+##       notice, this list of conditions and the following disclaimer in the
+##       documentation and/or other materials provided with the distribution.
+## 
+## THIS SOFTWARE IS PROVIDED BY SCOTT DUNLOP 'AS IS' AND ANY EXPRESS OR 
+## IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+## OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+## IN NO EVENT SHALL SCOTT DUNLOP OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+## INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES 
+## (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
+## SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) 
+## HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, 
+## STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+## ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
+## POSSIBILITY OF SUCH DAMAGE.
 
-usage = '''
-%s <portno>
-Interrogates an Android process via a local ADB bridge, listing loaded classes.
-'''
+import sys
+from getopt import getopt
+from andbug.process import Process
 
-if len(sys.argv) != 2:
-    print usage % (sys.argv[0],)
-    sys.exit(0)
+def usage(name):
+	print 'usage: %s port' % name
+	print '   ex: %s 9012' % name
+	print ''
+	sys.exit(2)
 
-try:
-    p = int(1919)
-except:
-    print usage % (sys.argv[0],)
-    sys.exit(1)
+def main(args):
+	if len(args) != 2:
+		usage(args[0])
 
-c = andbug.connect('127.0.0.1', int(sys.argv[1]))
+	port = int(args[1])
+	p = Process()
+	p.connect(port)
+	for c in p.classes():
+		n = c.jni
+		if n.startswith('L') and n.endswith(';'):
+			print n[1:-1].replace('/', '.')
 
-class_entry = namedtuple('class_entry', (
-	'tag', 'ref', 'jni', 'gen', 'status'
-))
-
-def unpack_succ(buf):
-	ct = buf.unpackU32()
-	ls = [None,] * ct
-	for i in range(0, ct):
-		ls[i] = class_entry(*buf.unpack("1t$$i"))
-	return ls
-
-code, buf = c.request(0x0114)
-if code:
-	print "PROTOCOL-ERROR:", code
-	sys.exit(1)
-
-for entry in unpack_succ(buf):
-	print entry.jni
+if __name__ == '__main__':
+	main(sys.argv)
