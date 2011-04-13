@@ -225,8 +225,10 @@ class Connection(Thread):
 
 	def buffer(self):
 		'returns a JdwpBuffer configured for this connection'
-		return JdwpBuffer.config(*self.size)
-	
+		buf = JdwpBuffer()
+		buf.config(*self.sizes)
+		return buf
+		
 	################################################################# THREAD API
 	
 	def start(self):
