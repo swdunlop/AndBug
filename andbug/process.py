@@ -67,7 +67,14 @@ class Process(object):
 		self.db = sqlite3.connect(dbpath)
 		self.db.text_factory = str
 		self.db.executescript(DB_SCHEMA)
+		self.cache = {}
 
+	def is_cached(self, key):
+		return self.cache.get(key)
+	
+	def set_cached(self, key):
+		self.cache[key] = True
+	
 	def connect(self, portno = None):
 		if portno: 
 			self.portno = portno
@@ -76,6 +83,9 @@ class Process(object):
 		return self.conn
 
 	def load_classes(self):
+		if self.is_cached('c'):
+			return 
+
 		code, buf = self.connect().request(0x0114)
 		if code != 0:
 			raise Failure(code)
@@ -92,7 +102,12 @@ class Process(object):
 			unpack_entries()
 		)
 	
+		self.set_cached('c')
+
 	def load_methods(self, cid):
+		if self.is_cached('m:' + str(cid)):
+			return 
+
 		conn = self.connect()
 		buf = conn.buffer()
 		buf.pack("t", cid)
@@ -113,6 +128,7 @@ class Process(object):
 			'insert into methods values(?, ?, ?, ?, ?, ?);',
 			unpack_entries()
 		)
+		self.set_cached('m:' + str(cid))
 
 	def classes(self, jni=None):
 		self.load_classes()
