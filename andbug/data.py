@@ -23,6 +23,19 @@
 ## ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
 ## POSSIBILITY OF SUCH DAMAGE.
 
+class multidict(dict):
+	'''
+	boring old multidicts..
+	'''
+	def get(self, key, alt=[]):
+		return dict.get(self, key, alt)
+	
+	def put(self, key, val):
+		try:
+			dict.__getitem__(self, key).append(val)
+		except KeyError:
+			dict.__setitem__(self, key, [val])
+
 class pool(object):
 	'''
 	a pool of singleton objects such that, for any combination of constructor 
@@ -42,17 +55,9 @@ class pool(object):
 	def __call__(self, *ident):
 		pool = self.pools.get(ident)
 		if pool is None:
-			pool = ident[0](self, *ident[1:])
+			pool = ident[0](*ident[1:])
 			self.pools[ident] = pool
 		return pool
-
-class item(object):
-	'''
-	an item which supports the defer property defined below
-	'''
-	def __init__(self, pool):
-		self.pool = pool
-		self.props = {}
 
 class view(object):
 	'''
@@ -83,7 +88,8 @@ class view(object):
 		for item in self.items:
 			setattr(item, key, val)
 
-class defer(object):
+
+def defer(func, name):
 	'''
 	a property decorator that, when applied, specifies a property that relies
 	on the execution of a costly function for its resolution; this permits the
@@ -92,37 +98,44 @@ class defer(object):
 	unlike other deferral implementation, this one accepts the reality that the
 	product of a single calculation may be multiple properties
 	'''
-	def __init__(self, func, name):
-		self.func = func
-		self.name = name
-	def __get__(self, obj, type=None):
+	def fget(obj, type=None):
 		try:
-			val = obj.props[self.name]
+			return obj.props[name]
 		except KeyError:
-			f = self.func
-			f(obj)
-			val = obj.props[self.name]
+			val = func(obj)
+			obj.props[name] = val
+		except AttributeError:
+			val = func(obj)
+			obj.props = {name : val}
 		return val
-	def __set__(self, obj, value):
-		obj.props[self.name] = value
 	
+	def fset(obj, value):
+		try:
+			obj.props[self.name] = value
+		except AttributeError:
+			obj.props = {name : val}
+
+	fget.func_name = 'get_' + name
+	fset.func_name = 'set_' + name
+	return property(fget, fset)
+
 if __name__ == '__main__':
-	class classitem(item):
-		def __init__(self, pool, cid):
-			item.__init__(self, pool)
+	pool = pool()
+
+	class classitem:
+		def __init__(self, cid):
 			self.cid = cid
 		def __repr__(self):
 			return '<class %s>' % self.cid
 
-	class methoditem(item):
-		def __init__(self, pool, cid, mid):
-			item.__init__(self, pool)
+	class methoditem:
+		def __init__(self, cid, mid):
 			self.cid = cid
 			self.mid = mid
 		def __repr__(self):
 			return '<method %s:%s>' % (self.cid, self.mid)
 		def classitem(self):
-			return self.pool(classitem, self.cid)
+			return pool(classitem, self.cid)
 		def load_line_table(self):
 			print "LOAD-LINE-TABLE", self.cid, self.mid
 			self.first = 1
@@ -135,8 +148,6 @@ if __name__ == '__main__':
 		last =  defer(load_line_table, 'last')
 		lines = defer(load_line_table, 'lines')
 
-
-	pool = pool()
 	m1 = pool(methoditem, 'c1', 'm1')
 	m2 = pool(methoditem, 'c1', 'm2')
 	m3 = pool(methoditem, 'c2', 'm3')
@@ -148,4 +159,3 @@ if __name__ == '__main__':
 	print (v.get('last'))
 	print v.classitem()
 	print list(m for m in v)
-
