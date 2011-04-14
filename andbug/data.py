@@ -36,6 +36,12 @@ class multidict(dict):
 		except KeyError:
 			dict.__setitem__(self, key, [val])
 
+	def __setitem__(self, key, val):
+		self.put(key, val)
+	
+	def __getitem__(self, key):
+		return self.get(key)
+
 class pool(object):
 	'''
 	a pool of singleton objects such that, for any combination of constructor 
@@ -65,8 +71,9 @@ class view(object):
 	that calling a method on the collection with given arguments would result
 	in calling that method on each object and returning the results as a list
 	'''
+
 	def __init__(self, items):
-		self.items = items
+		self.items = tuple(items)
 	def __repr__(self):
 		return '(' + ', '.join(str(item) for item in self.items) + ')'
 	def __len__(self):
@@ -74,12 +81,16 @@ class view(object):
 	def __getitem__(self, index):
 		return self.items[index]
 	def __iter__(self):
-		return self.items.__iter__()
+		return iter(self.items)
 	def __getattr__(self, key):
 		def poolcall(*args, **kwargs):
-			return view( 
+			t = tuple( 
 				getattr(item, key)(*args, **kwargs) for item in self.items
 			)
+			for n in t:
+				if not isinstance(n, view):
+					return view(t)
+			return view(flatten(t))
 		poolcall.func_name = '*' + key
 		return poolcall
 	def get(self, key):
@@ -88,6 +99,10 @@ class view(object):
 		for item in self.items:
 			setattr(item, key, val)
 
+def flatten(seq):
+	for ss in seq:
+		for s in ss:
+			yield s
 
 def defer(func, name):
 	'''
@@ -98,22 +113,23 @@ def defer(func, name):
 	unlike other deferral implementation, this one accepts the reality that the
 	product of a single calculation may be multiple properties
 	'''
-	def fget(obj, type=None):
+	def fget(obj, type=None):	
 		try:
 			return obj.props[name]
 		except KeyError:
-			val = func(obj)
-			obj.props[name] = val
+			pass
 		except AttributeError:
-			val = func(obj)
-			obj.props = {name : val}
-		return val
+			obj.props = {}
+
+		obj.props[name] = None
+		func(obj)
+		return obj.props[name]
 	
 	def fset(obj, value):
 		try:
-			obj.props[self.name] = value
+			obj.props[name] = value
 		except AttributeError:
-			obj.props = {name : val}
+			obj.props = {name : value}
 
 	fget.func_name = 'get_' + name
 	fset.func_name = 'set_' + name

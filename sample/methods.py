@@ -26,15 +26,7 @@
 import sys
 from getopt import getopt
 from andbug.process import Process
-
-def parse_cname(name):
-	if name.startswith('L') and name.startswith(';') and ('.' not in name):
-		return name
-	elif name.startswith('L') or name.startswith(';') or ('/' in name):
-		print 'error: could not determine if -n is a JNI or "natural" class name'
-		sys.exit(1)
-	else:
-		return'L' + name.replace('.', '/') + ';'
+from andbug.options import parse_cname
 
 def parse_options(opts):
 	name, jni = None, None
@@ -66,3 +58,4 @@ def main(args):
 
 if __name__ == '__main__':
 	main(sys.argv)
+

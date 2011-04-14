@@ -24,25 +24,13 @@
 ## POSSIBILITY OF SUCH DAMAGE.
 
 import sys
-from getopt import getopt
-from andbug.process import Process
 
-def usage(name):
-	print 'usage: %s port' % name
-	print '   ex: %s 9012' % name
-	print ''
-	sys.exit(2)
+def parse_cname(name):
+	if name.startswith('L') and name.startswith(';') and ('.' not in name):
+		return name
+	elif name.startswith('L') or name.startswith(';') or ('/' in name):
+		print 'error: could not determine if -n is a JNI or "natural" class name'
+		sys.exit(1)
+	else:
+		return'L' + name.replace('.', '/') + ';'
 
-def main(args):
-	if len(args) != 2:
-		usage(args[0])
-
-	port = int(args[1])
-	p = Process(port)
-	for c in p.classes():
-		n = c.jni
-		if n.startswith('L') and n.endswith(';'):
-			print n[1:-1].replace('/', '.')
-
-if __name__ == '__main__':
-	main(sys.argv)
