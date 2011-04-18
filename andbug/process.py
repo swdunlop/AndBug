@@ -30,6 +30,14 @@ class Failure(Exception):
 	def __init__(self, code):
 		Exception.__init__(self, 'request failed, code %s', code)
 
+class Thread(object):
+	def __init__(self, proc, tid):
+		self.proc = proc
+		self.tid = tid
+	
+	def __str__(self):
+		return '<thread 0x%x>' % self.tid
+
 class Location(object):
 	def __init__(self, proc, cid, mid, loc):
 		self.proc = proc
@@ -230,3 +238,15 @@ class Process(object):
 			seq = self.classList
 		return andbug.data.view(seq)
 	
+	@property
+	def threads(self):
+		pool = self.pool
+		code, buf = self.conn.request(0x0104, '')
+		if code != 0:
+			raise Failure(code)
+		ct = buf.unpackInt()
+
+		def load_thread():
+			tid = buf.unpackObjectId()
+			return pool(Thread, self, tid)
+		return andbug.data.view(load_thread() for x in range(0,ct))
