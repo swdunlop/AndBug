@@ -34,7 +34,9 @@ class multidict(dict):
 		try:
 			dict.__getitem__(self, key).append(val)
 		except KeyError:
-			dict.__setitem__(self, key, [val])
+			v = view()
+			v.append(val)
+			dict.__setitem__(self, key, v)
 
 	def __setitem__(self, key, val):
 		self.put(key, val)
@@ -72,8 +74,8 @@ class view(object):
 	in calling that method on each object and returning the results as a list
 	'''
 
-	def __init__(self, items):
-		self.items = tuple(items)
+	def __init__(self, items = []):
+		self.items = list(items)
 	def __repr__(self):
 		return '(' + ', '.join(str(item) for item in self.items) + ')'
 	def __len__(self):
@@ -98,6 +100,8 @@ class view(object):
 	def set(self, key, val):
 		for item in self.items:
 			setattr(item, key, val)
+	def append(self, val):
+		self.items.append(val)
 
 def flatten(seq):
 	for ss in seq:

@@ -74,7 +74,7 @@ class Method(object):
 		return '%s.%s%s' % (
 			self.klass, self.name, self.jni 
 	)		
-	
+	 
 	def __repr__(self):
 		return '<method %s>' % self
 
