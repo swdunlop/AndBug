@@ -55,6 +55,11 @@ class Location(object):
 		c = self.klass
 		buf.ipack('1tm8', c.tag, self.cid, self.mid, self.loc)
 
+	@classmethod
+	def unpackFrom(impl, proc, buf):
+		tag, cid, mid, loc = buf.unpack('1tm8')
+		return impl(proc, cid, mid, loc)
+
 class Method(object):
 	def __init__(self, proc, cid, mid):
 		self.proc = proc
@@ -224,4 +229,4 @@ class Process(object):
 		else:
 			seq = self.classList
 		return andbug.data.view(seq)
-
+	
