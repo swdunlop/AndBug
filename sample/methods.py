@@ -54,7 +54,7 @@ def main(args):
 	p = Process()
 	p.connect(port)
 	for m in p.classes(cn).methods(name=mn, jni=jni):
-		print m.name, m.jni
+		print m#m.name, m.jni, m.firstLoc, m.lastLoc
 
 if __name__ == '__main__':
 	main(sys.argv)
