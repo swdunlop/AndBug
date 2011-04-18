@@ -38,6 +38,14 @@ class Thread(object):
 	def __str__(self):
 		return '<thread 0x%x>' % self.tid
 
+	def resume(self):
+		conn = self.proc.conn
+		buf = conn.buffer()
+		buf.pack('t', self.tid)
+		code, buf = conn.request(0x0B03, buf.data())
+		if code != 0:
+			raise Failure(code)
+
 class Location(object):
 	def __init__(self, proc, cid, mid, loc):
 		self.proc = proc
@@ -250,3 +258,6 @@ class Process(object):
 			tid = buf.unpackObjectId()
 			return pool(Thread, self, tid)
 		return andbug.data.view(load_thread() for x in range(0,ct))
+
+	def thread(self, tid):
+		return self.pool(Thread, self, tid)
