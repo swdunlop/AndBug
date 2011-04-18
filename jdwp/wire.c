@@ -63,10 +63,10 @@ char *jdwp_en_errors[] = {
 #define REQUIRE_LEN(n) if ((buf->len - buf->ofs) < n) return JDWP_NEED_LEN;
 
 int jdwp_expand( jdwp_buffer* buf, int req ){
-	int cap = cap;
+	int cap = buf->cap;
 	req += buf->len;
 	if (req < cap) return 0; // we'll be fine.
-	if (cap < 1024) cap = 1024; // jumps up to 1k to reduce flutter
+	if (cap < 256) cap = 256; // jumps up to 256 bytes to reduce flutter
 again:
 	cap <<= 2;
 	if (cap < req) goto again;

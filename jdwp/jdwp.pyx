@@ -38,6 +38,7 @@ cdef extern from "wire.h":
 
 	int jdwp_config( jdwp_buffer* buf, uint8_t fSz, uint8_t mSz, uint8_t oSz, uint8_t tSz, uint8_t sSz )
 	int jdwp_prepare( jdwp_buffer* buf, char* data, int len )
+	int jdwp_expand( jdwp_buffer* buf, int len )
 	void jdwp_purge( jdwp_buffer* buf )
 	int jdwp_pack( jdwp_buffer* buf, char format, uint64_t value )
 	int jdwp_unpack( jdwp_buffer* buf, char format, uint64_t* value )
@@ -234,6 +235,25 @@ cdef class JdwpBuffer:
 		cfmt = PyString_AsString(fmt)
 		sz = self.size(cfmt, args)
 		self.preparePack(sz)
+		for 0 <= i < len(fmt):
+			op = cfmt[i]
+			if op == c'$':
+				self.packStr(args[i])
+			else:
+				val = args[i]
+				jdwp_pack( &self.buf, op, val ) #TODO: dispatch on op
+			#TODO: HANDLE-ERROR
+		return PyString_FromStringAndSize(self.buf.data, sz)
+	
+	def ipack(self, fmt, *args):
+		cdef char* cfmt
+		cdef uint64_t val
+		cdef int i
+		cdef char op
+
+		cfmt = PyString_AsString(fmt)
+		sz = self.size(cfmt, args)
+		jdwp_expand(&self.buf, sz)
 		for 0 <= i < len(fmt):
 			op = cfmt[i]
 			if op == c'$':
