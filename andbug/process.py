@@ -51,6 +51,10 @@ class Location(object):
 	def klass(self):
 		return self.proc.pool(Class, self.proc, self.cid)
 
+	def packTo(self, buf):
+		c = self.klass
+		buf.ipack('1tm8', c.tag, self.cid, self.mid, self.loc)
+
 class Method(object):
 	def __init__(self, proc, cid, mid):
 		self.proc = proc
@@ -114,7 +118,7 @@ class Class(object):
 	
 	def __repr__(self):
 		return '<class %s>' % self
-		
+
 	def load_methods(self):
 		cid = self.cid
 		proc = self.proc
@@ -197,6 +201,7 @@ class Process(object):
 		def load_class():
 			tag, cid, jni, gen, flags = buf.unpack('1t$$i')
 			obj = self.pool(Class, self, cid)
+			obj.tag = tag
 			obj.cid = cid
 			obj.jni = jni
 			obj.gen = gen
@@ -219,3 +224,4 @@ class Process(object):
 		else:
 			seq = self.classList
 		return andbug.data.view(seq)
+
