@@ -26,6 +26,8 @@ cdef extern from "wire.h":
 	ctypedef unsigned short uint16_t
 	ctypedef unsigned int uint32_t
 	ctypedef unsigned long long uint64_t
+	ctypedef int int32_t
+	ctypedef long long int64_t
 	ctypedef struct jdwp_buffer:
 		uint8_t fSz
 		uint8_t mSz
@@ -111,6 +113,10 @@ cdef class JdwpBuffer:
 		einz( jdwp_pack_u32(&self.buf, quad) )
 	def packU64( self, uint64_t octet ):
 		einz( jdwp_pack_u64(&self.buf, octet) )
+	def packInt(self, int32_t i):
+		einz( jdwp_pack_u32(&self.buf, i) )
+	def packLong(self, int64_t l):
+		einz( jdwp_pack_u64(&self.buf, l) )
 
 	def packObjectId( self, uint64_t id ):
 		einz( jdwp_pack_object_id( &self.buf, id ) )
@@ -139,6 +145,15 @@ cdef class JdwpBuffer:
 		cdef uint64_t x
 		einz( jdwp_unpack_u64(&self.buf, &x) )
 		return x
+	def unpackInt(self):
+		cdef uint32_t x
+		einz( jdwp_unpack_u32(&self.buf, &x) )
+		return <int32_t>x
+
+	def unpackLong(self):
+		cdef uint64_t x
+		einz( jdwp_unpack_u64(&self.buf, &x) )
+		return <int64_t>x
 	
 	def unpackObjectId(self):
 		cdef uint64_t x
