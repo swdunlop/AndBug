@@ -104,7 +104,8 @@ class Connection(Thread):
 		self.initialized = False
 		self.nextId = 3
 		self.bindqueue = Queue()
-		self.bindmap = {}
+		self.qmap = {}
+		self.rmap = {}
 		self.xmitlock = Lock()
 
 	def read(self, sz):
@@ -165,21 +166,27 @@ class Connection(Thread):
 		
 		if flags == 0x80:
 			self.processResponse(ident, code, data)
-		elif code == 0x4064:
-			self.processEvent(data)
 		else:
 			self.processRequest(ident, code, data)
 
-	def processBind(self, ident, chan):
-		self.bindmap[ident] = chan
-	
+	def processBind(self, qr, ident, chan):
+		if qr == 'q':
+			self.qmap[ident] = chan
+		elif qr == 'r':
+			self.rmap[ident] = chan
+
 	def processRequest(self, ident, code, data):
 		'used internally by the processor; must have recv control'
-		pass #TODO
+		fn = self.rmap.get(code)
+		if not fn: return #TODO
+		buf = JdwpBuffer()
+		buf.config(*self.sizes)
+		buf.prepareUnpack(data)
+		fn(ident, buf)
 		
 	def processResponse(self, ident, code, data):
 		'used internally by the processor; must have recv control'		
-		chan = self.bindmap.pop(ident, None)
+		chan = self.qmap.pop(ident, None)
 		
 		if not chan: return
 		buf = JdwpBuffer()
@@ -187,9 +194,15 @@ class Connection(Thread):
 		buf.prepareUnpack(data)
 		chan.put((code, buf))
 
-	def processEvent(self, data):
-		pass #TODO
-
+	def hook(self, code, func):
+		'''
+		func will be invoked when code requests are received in the process loop;
+		you cannot safely issue requests here -- therefore, you should generally
+		pass the call to a queue.
+		'''
+		with self.xmitlock:
+			self.bindqueue.put(('r', code, func))
+		
 	####################################################### TRANSMITTING PACKETS
 	
 	def acquireIdent(self):
@@ -215,7 +228,7 @@ class Connection(Thread):
 
 		with self.xmitlock:
 			ident = self.acquireIdent()
-			self.bindqueue.put((ident, queue))
+			self.bindqueue.put(('q', ident, queue))
 			self.writeContent(ident, 0x0, code, data)
 		
 		try:
