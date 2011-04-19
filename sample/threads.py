@@ -25,7 +25,7 @@
 
 import sys
 from getopt import getopt
-from andbug.process import Process
+from andbug.process import Process, Failure
 
 def usage(name):
 	print 'usage: %s port' % name
@@ -45,7 +45,13 @@ def main(args):
 			print str(t)
 			for f in t.frames:
 				print "    ", f.loc
-				
+				#if f.loc.loc == -1: continue
+				try:
+					for s in f.loc.slots:
+						print "        ", s
+				except Failure as f:
+					    print "        FAILURE", f.code
+					     				
 	finally:
 		p.resume()
 

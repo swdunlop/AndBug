@@ -30,7 +30,8 @@ from Queue import Queue
 
 class Failure(Exception):
 	def __init__(self, code):
-		Exception.__init__(self, 'request failed, code %s', code)
+		Exception.__init__(self, 'request failed, code %s' % code)
+		self.code = code
 
 class Frame(object):
 	def __init__(self, proc, fid):
@@ -53,8 +54,7 @@ class Frame(object):
 	
 	def packTo(self, buf):
 		buf.packFrameId(self.fid)
-
-	
+		
 class Thread(object):
 	def __init__(self, proc, tid):
 		self.proc = proc
@@ -144,14 +144,6 @@ class Location(object):
 		else:
 			return str(self.method)
 
-	@property
-	def method(self):
-		return self.proc.pool(Method, self.proc, self.cid, self.mid)
-	
-	@property
-	def klass(self):
-		return self.proc.pool(Class, self.proc, self.cid)
-
 	def packTo(self, buf):
 		c = self.klass
 		buf.ipack('1tm8', c.tag, self.cid, self.mid, self.loc)
@@ -171,6 +163,56 @@ class Location(object):
 			raise Failure(code)
 		eid = buf.unpackInt()
 		return self.proc.hook(eid, queue)
+	
+	@property
+	def native(self):
+		return self.loc == -1
+
+	@property
+	def method(self):
+		return self.proc.method(self.cid, self.mid)
+
+	@property
+	def klass(self):
+		return self.proc.klass(self.cid)
+
+	@property
+	def slots(self):
+		l = self.loc
+		def filter_slots():
+			for slot in self.method.slots:
+				f = slot.firstLoc
+				if f > l: continue
+				if l - f > slot.locLength: continue
+				yield slot
+		return tuple() if self.native else tuple(filter_slots())
+
+class Slot(object):
+	def __init__(self, proc, cid, mid, index):
+		self.proc = proc
+		self.cid = cid
+		self.mid = mid
+		self.index = index
+		self.name = None
+
+	def __str__(self):
+		if self.name:
+			return 'slot %s at index %i' % (self.name, self.index)
+		else:
+			return 'slot at index %i' % (self.index)
+
+	def load_slot(self):
+		self.proc.pool(Class, cid).load_slots()
+
+	firstLoc = defer(load_slot, 'firstLoc')
+	locLength = defer(load_slot, 'locLength')
+	name = defer(load_slot, 'name')
+	jni = defer(load_slot, 'jni')
+	gen = defer(load_slot, 'gen')
+
+	@property
+	def tag(self):
+		return self.jni[0]
 
 class Method(object):
 	def __init__(self, proc, cid, mid):
@@ -234,6 +276,33 @@ class Method(object):
 	gen = defer(load_method, 'gen')
 	flags = defer(load_method, 'flags' )
 
+	def load_slot_table(self):
+		proc = self.proc
+		conn = proc.conn
+		pool = proc.pool
+		cid = self.cid
+		mid = self.mid
+		data = conn.buffer().pack('om', cid, mid)
+		code, buf = conn.request(0x0605, data)
+		if code != 0: raise Failure(code)
+	
+		act, sct = buf.unpack('ii')
+		#TODO: Do we care about the argCnt ?
+		 
+		def load_slot():
+			codeIndex, name, jni, gen, codeLen, index  = buf.unpack('l$$$ii')
+			slot = pool(Slot, proc, cid, mid, index)
+			slot.firstLoc = codeIndex
+			slot.locLength = codeLen
+			slot.name = name
+			slot.jni = jni
+			slot.gen = gen
+
+			return slot
+
+		self.slots = andbug.data.view(load_slot() for i in range(0,sct))
+
+	slots = defer(load_slot_table, 'slots')
 				
 class Class(object): 
 	def __init__(self, proc, cid):
@@ -458,3 +527,9 @@ class Process(object):
 		if code != 0:
 			raise Failure(code)
 
+	def method(self, cid, mid):
+		return self.pool(Method, self, cid, mid)
+		
+	def klass(self, cid):
+		return self.pool(Class, self, cid)
+		

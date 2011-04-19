@@ -63,7 +63,7 @@ def main(args):
 	while True:
 		try:
 			t, l = q.get(True,1)
-			print ':: HIT', l
+			print ':: HIT', l, 'IN', t
 			t.resume()
 		except QueueEmpty:
 			pass
