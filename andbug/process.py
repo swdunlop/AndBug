@@ -25,6 +25,8 @@
 
 import andbug, andbug.data
 from andbug.data import defer
+from threading import Lock
+from Queue import Queue
 
 class Failure(Exception):
 	def __init__(self, code):
@@ -45,6 +47,14 @@ class Thread(object):
 		code, buf = conn.request(0x0B03, buf.data())
 		if code != 0:
 			raise Failure(code)
+
+	def packTo(self, buf):
+		buf.packObjectId(self.tid)
+
+	@classmethod
+	def unpackFrom(impl, proc, buf):
+		tid = buf.unpackObjectId()
+		return proc.pool(impl, proc, tid)
 
 class Location(object):
 	def __init__(self, proc, cid, mid, loc):
@@ -74,7 +84,19 @@ class Location(object):
 	@classmethod
 	def unpackFrom(impl, proc, buf):
 		tag, cid, mid, loc = buf.unpack('1tm8')
-		return impl(proc, cid, mid, loc)
+		return proc.pool(impl, proc, cid, mid, loc)
+
+	def hook(self, queue = None):
+		conn = self.proc.conn
+		buf = conn.buffer()
+		buf.pack('11i1', 40, 1, 1, 7)
+		self.packTo(buf)
+		code, buf = conn.request(0x0F01, buf.data())
+		if code != 0:
+			raise Failure(code)
+		eid = buf.unpackInt()
+		return self.proc.hook(eid, queue)
+
 
 class Method(object):
 	def __init__(self, proc, cid, mid):
@@ -200,18 +222,83 @@ class Class(object):
 		name = name.replace('/', '.')
 		return name
 
+class Hook(object):
+	def __init__(self, proc, ident, queue = None):
+		self.proc = proc
+		self.queue = queue or Queue()
+		self.ident = ident
+		with self.proc.ectl:
+			self.proc.emap[ident] = self
+
+	def put(self, data):
+		return self.queue.put(data)
+			
+	def get(self, block = False, timeout = None):
+		return self.queue.get(block, timeout)
+
+	def clear(self):
+		#TODO: EventRequest.Clear
+		with self.proc.ectl:
+			del self.proc.emap[ident]
+
+unpack_impl = [None,] * 256
+
+def register_unpack_impl(ek, fn):
+	unpack_impl[ek] = fn
+
+def unpack_events(proc, buf):
+	sp, ct = buf.unpack('1i')
+	for i in range(0, ct):
+		ek = buf.unpackU8()
+		im = unpack_impl[ek]
+		if im is None:
+			raise Failure(ek)
+		else:
+			yield im(proc, buf)
+
+def unpack_method_entry(proc, buf):
+	rid = buf.unpackInt()
+	t = Thread.unpackFrom(proc, buf)
+	loc = Location.unpackFrom(proc, buf)
+
+	#TODO: Do we even care about loc?
+	return rid, t, loc
+
+register_unpack_impl(40, unpack_method_entry)
+
 class Process(object):
 	def __init__(self, portno = None, conn = None):
 		self.pool = andbug.data.pool()
 		self.conn = conn
+		self.emap = {}
+		self.ectl = Lock()
 		if conn is None:
 			self.connect(portno)
 
+	def hook(self, ident, queue = None):
+		return Hook(self, ident, queue)
+
+	def processEvent(self, ident, buf):
+		pol, ct = buf.unpack('1i')
+		for i in range(0,ct):
+			ek = buf.unpackU8()
+			im = unpack_impl[ek]
+			if im is None:
+				raise Failure(ek)
+
+			evt = im(self, buf)
+			with self.ectl:
+				hook = self.emap.get(evt[0])
+			if hook is not None:
+				hook.put(evt[1:])
+								
 	def connect(self, portno = None):
 		if portno: 
 			self.portno = portno
 			if self.conn is None: 
 				self.conn = andbug.proto.connect('127.0.0.1', self.portno)
+		
+			self.conn.hook(0x4064, self.processEvent)
 		return self.conn
 
 	def load_classes(self):
@@ -259,5 +346,3 @@ class Process(object):
 			return pool(Thread, self, tid)
 		return andbug.data.view(load_thread() for x in range(0,ct))
 
-	def thread(self, tid):
-		return self.pool(Thread, self, tid)

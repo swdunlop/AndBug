@@ -23,6 +23,8 @@
 ## ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
 ## POSSIBILITY OF SUCH DAMAGE.
 
+from threading import Lock
+
 class multidict(dict):
 	'''
 	boring old multidicts..
@@ -60,12 +62,14 @@ class pool(object):
 	'''
 	def __init__(self):
 		self.pools = {}
+		self.lock = Lock()
 	def __call__(self, *ident):
-		pool = self.pools.get(ident)
-		if pool is None:
-			pool = ident[0](*ident[1:])
-			self.pools[ident] = pool
-		return pool
+		with self.lock:
+			pool = self.pools.get(ident)
+			if pool is None:
+				pool = ident[0](*ident[1:])
+				self.pools[ident] = pool
+			return pool
 
 class view(object):
 	'''

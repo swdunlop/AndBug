@@ -1,31 +1,33 @@
-C_THREAD = 3
-C_CLASS = 4
-C_LOCATION = 7
+## Copyright 2011, Scott W. Dunlop <swdunlop@gmail.com> All rights reserved.
+##
+## Redistribution and use in source and binary forms, with or without 
+## modification, are permitted provided that the following conditions are 
+## met:
+## 
+##    1. Redistributions of source code must retain the above copyright 
+##       notice, this list of conditions and the following disclaimer.
+## 
+##    2. Redistributions in binary form must reproduce the above copyright 
+##       notice, this list of conditions and the following disclaimer in the
+##       documentation and/or other materials provided with the distribution.
+## 
+## THIS SOFTWARE IS PROVIDED BY SCOTT DUNLOP 'AS IS' AND ANY EXPRESS OR 
+## IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+## OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+## IN NO EVENT SHALL SCOTT DUNLOP OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+## INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES 
+## (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
+## SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) 
+## HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, 
+## STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+## ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
+## POSSIBILITY OF SUCH DAMAGE.
 
-EK_METHOD_ENTRY = 40
-EK_METHOD_EXIT = 41
-
-SP_NONE = 0
-SP_THREAD = 1
-SP_PROCESS = 2
-
-from andbug.process import Failure
+import sys
+from getopt import getopt
+from andbug.process import Process
 from andbug.options import parse_cname
-
-def pack_setevt(buf, kind, policy, modifiers):
-	buf.pack('11i', kind, policy, len(modifiers))
-	
-	for mod in modifiers:
-		k = mod[0]
-		buf.packU8(k)
-		if k == C_THREAD: # thread-requirement
-			buf.pack('o', mod[1])
-		elif k == C_CLASS: # class-requirement
-			buf.pack('t', mod[1]) 
-		elif k == C_LOCATION: # location-requirement
-			buf.pack('1tm8', mod[2], mod[3], mod[4], mod[5])
-		else:
-			raise Failure('unrecognized modifier %s' % mod)
+from Queue import Queue, Empty as QueueEmpty
 
 def parse_options(opts):
 	name, jni = None, None
@@ -43,23 +45,6 @@ def usage(name):
 	print ''
 	sys.exit(2)
 
-def method_line_table(conn, cid, mid):
-	data = conn.buffer().pack('tm', cid, mid)
-	code, buf = conn.request(0x0601, data)
-	if code != 0: raise Failure(code)
-	first, last, count = buf.unpack('88i')
-	#TODO
-	return first, last
-
-def trace(conn, cid, mid):
-	buf = self.proc.conn.buffer()
-	loc = method_line_table(conn, cid, mid)[0]
-	pack_setevt( buf, EK_METHOD_ENTRY, SP_NONE, (
-		(C_CLASS, cid),
-		(C_LOCATION, loc)
-	))
-	code, data = self.proc.conn.request(0x1501, buf.data())
-
 def main(args):
 	if len(args) < 3: usage(args[0])
 	mn, jni, args = parse_options(args[1:])
@@ -67,14 +52,22 @@ def main(args):
 
 	port = int(args[0])
 	cn = parse_cname(args[1])
-	p = Process(port)
-	for m in p.classes(cn).methods(name=mn, jni=jni):
-		trace(p.conn, m.cid, m.mid)
-	
+	p = Process()
+	p.connect(port)
+	q = Queue()
 
-	#TODO: identify matching methods
-	#TODO: set a break on each method
-	trace(conn, cid, mid)
+	for l in p.classes(cn).methods(name=mn, jni=jni).get('firstLoc'):
+		l.hook(q)
+		print ':: HOOKED', l
+
+	while True:
+		try:
+			t, l = q.get(True,1)
+			print ':: HIT', l
+			t.resume()
+		except QueueEmpty:
+			pass
 
 if __name__ == '__main__':
 	main(sys.argv)
+
