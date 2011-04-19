@@ -37,7 +37,8 @@ class Frame(object):
 		self.proc = proc
 		self.fid = fid
 		self.loc = None
-	
+		self.tid = None
+			
 	def __repr__(self):
 		return '<%s>' % self
 
@@ -45,6 +46,7 @@ class Frame(object):
 		return 'frame %s, at %s' % (
 			self.fid, self.loc
 		) 	
+
 	@classmethod 
 	def unpackFrom(impl, proc, buf):
 		return proc.pool(impl, proc, buf.unpackFrameId())
@@ -52,6 +54,7 @@ class Frame(object):
 	def packTo(self, buf):
 		buf.packFrameId(self.fid)
 
+	
 class Thread(object):
 	def __init__(self, proc, tid):
 		self.proc = proc
@@ -74,7 +77,7 @@ class Thread(object):
 	def resume(self):
 		conn = self.proc.conn
 		buf = conn.buffer()
-		buf.pack('t', self.tid)
+		buf.pack('o', self.tid)
 		code, buf = conn.request(0x0B03, buf.data())
 		if code != 0:
 			raise Failure(code)
@@ -89,6 +92,7 @@ class Thread(object):
 
 	@property
 	def frames(self):
+		tid = self.tid
 		proc = self.proc
 		conn = proc.conn
 		buf = conn.buffer()
@@ -101,6 +105,7 @@ class Thread(object):
 		def load_frame():
 			f = Frame.unpackFrom(proc, buf)
 			f.loc = Location.unpackFrom(proc, buf)
+			f.tid = tid
 			return f
 
 		return andbug.data.view(load_frame() for i in range(0,ct))
@@ -185,13 +190,13 @@ class Method(object):
 	def __repr__(self):
 		return '<method %s>' % self
 
-	def load_table(self):
+	def load_line_table(self):
 		proc = self.proc
 		conn = proc.conn
 		pool = proc.pool
 		cid = self.cid
 		mid = self.mid
-		data = conn.buffer().pack('tm', cid, mid)
+		data = conn.buffer().pack('om', cid, mid)
 		code, buf = conn.request(0x0601, data)
 		if code != 0: raise Failure(code)
 		
@@ -216,9 +221,9 @@ class Method(object):
 		for i in range(0,ct):
 			line_loc()
 	
-	firstLoc = defer(load_table, 'firstLoc')
-	lastLoc = defer(load_table, 'lastLoc')
-	lineTable = defer(load_table, 'lineTable')
+	firstLoc = defer(load_line_table, 'firstLoc')
+	lastLoc = defer(load_line_table, 'lastLoc')
+	lineTable = defer(load_line_table, 'lineTable')
 
 	def load_method(self):
 		self.klass.load_methods()
@@ -229,6 +234,7 @@ class Method(object):
 	gen = defer(load_method, 'gen')
 	flags = defer(load_method, 'flags' )
 
+				
 class Class(object): 
 	def __init__(self, proc, cid):
 		self.proc = proc
@@ -451,3 +457,4 @@ class Process(object):
 		code, buf = conn.request(0x0108, '')
 		if code != 0:
 			raise Failure(code)
+

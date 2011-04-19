@@ -45,6 +45,7 @@ def main(args):
 			print str(t)
 			for f in t.frames:
 				print "    ", f.loc
+				
 	finally:
 		p.resume()
 
