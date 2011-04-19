@@ -59,6 +59,7 @@ class Thread(object):
 	
 	def __repr__(self):
 		return '<%s>' % self
+
 	def __str__(self):
 		return 'thread %s' % (self.name or hex(self.tid))
 
@@ -133,8 +134,11 @@ class Location(object):
 		self.line = None
 
 	def __str__(self):
-		return '%s:$%x' % (self.method, self.loc)
-
+		if self.loc >= 0:
+			return '%s:$%x' % (self.method, self.loc)
+		else:
+			return str(self.method)
+			
 	@property
 	def method(self):
 		return self.proc.pool(Method, self.proc, self.cid, self.mid)
