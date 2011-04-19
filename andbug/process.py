@@ -32,6 +32,26 @@ class Failure(Exception):
 	def __init__(self, code):
 		Exception.__init__(self, 'request failed, code %s', code)
 
+class Frame(object):
+	def __init__(self, proc, fid):
+		self.proc = proc
+		self.fid = fid
+		self.loc = None
+	
+	def __repr__(self):
+		return '<%s>' % self
+		
+	def __str__(self):
+		return 'frame %s, at %s' % (
+			self.fid, self.loc
+		) 	
+	@classmethod 
+	def unpackFrom(impl, proc, buf):
+		return proc.pool(impl, proc, buf.unpackFrameId())
+	
+	def packTo(self, buf):
+		buf.packFrameId(self.fid)
+
 class Thread(object):
 	def __init__(self, proc, tid):
 		self.proc = proc
@@ -55,6 +75,34 @@ class Thread(object):
 	def unpackFrom(impl, proc, buf):
 		tid = buf.unpackObjectId()
 		return proc.pool(impl, proc, tid)
+
+	@property
+	def frames(self):
+		proc = self.proc
+		conn = proc.conn
+		buf = conn.buffer()
+		buf.pack('oii', self.tid, 0, -1)
+		code, buf = conn.request(0x0B06, buf.data())
+		if code != 0:
+			raise Failure(code)
+		ct = buf.unpackInt()
+
+		def load_frame():
+			f = Frame.unpackFrom(proc, buf)
+			f.loc = Location.unpackFrom(proc, buf)
+			return f
+
+		return andbug.data.view(load_frame() for i in range(0,ct))
+
+	@property
+	def frameCount(self):	
+		conn = self.proc.conn
+		buf = conn.buffer()
+		buf.packObjectId(self.tid)
+		code, buf = conn.request(0x0B07, buf.data())
+		if code != 0:
+			raise Failure(code)
+		return buf.unpackInt()
 
 class Location(object):
 	def __init__(self, proc, cid, mid, loc):
@@ -96,7 +144,6 @@ class Location(object):
 			raise Failure(code)
 		eid = buf.unpackInt()
 		return self.proc.hook(eid, queue)
-
 
 class Method(object):
 	def __init__(self, proc, cid, mid):
@@ -346,3 +393,20 @@ class Process(object):
 			return pool(Thread, self, tid)
 		return andbug.data.view(load_thread() for x in range(0,ct))
 
+	def suspend(self):
+		code, buf = self.conn.request(0x0108, '')
+		if code != 0:
+			raise Failure(code)
+
+	def resume(self):
+		code, buf = self.conn.request(0x0109, '')
+		if code != 0:
+			raise Failure(code)
+
+	def exit(self, code = 0):
+		conn = self.proc.conn
+		buf = conn.buffer()
+		buf.pack('i', code)
+		code, buf = conn.request(0x0108, '')
+		if code != 0:
+			raise Failure(code)
