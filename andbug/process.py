@@ -40,7 +40,7 @@ class Frame(object):
 	
 	def __repr__(self):
 		return '<%s>' % self
-		
+
 	def __str__(self):
 		return 'frame %s, at %s' % (
 			self.fid, self.loc
@@ -198,6 +198,15 @@ class Method(object):
 	lastLoc = defer(load_table, 'lastLoc')
 	lineTable = defer(load_table, 'lineTable')
 
+	def load_method(self):
+		self.klass.load_methods()
+		assert self.name != None
+
+	name = defer(load_method, 'name')
+	jni = defer(load_method, 'jni')
+	gen = defer(load_method, 'gen')
+	flags = defer(load_method, 'flags' )
+
 class Class(object): 
 	def __init__(self, proc, cid):
 		self.proc = proc
@@ -230,7 +239,7 @@ class Class(object):
 			obj.gen = gen
 			obj.flags = flags
 			return obj
-
+	
 		self.methodList = andbug.data.view(load_method() for i in range(0, ct))
 		self.methodByJni = andbug.data.multidict()
 		self.methodByName = andbug.data.multidict()
@@ -248,6 +257,16 @@ class Class(object):
 	methodList = defer(load_methods, 'methodList')
 	methodByJni = defer(load_methods, 'methodByJni')
 	methodByName = defer(load_methods, 'methodByName')
+
+	def load_class(self):
+		self.proc.load_classes()
+		assert self.tag != None
+		assert self.flags != None
+
+	tag = defer(load_class, 'tag')
+	jni = defer(load_class, 'jni')
+	gen = defer(load_class, 'gen')
+	flags = defer(load_class, 'flags')
 
 	def methods(self, name=None, jni=None):
 		if name and jni:
@@ -347,7 +366,7 @@ class Process(object):
 		
 			self.conn.hook(0x4064, self.processEvent)
 		return self.conn
-
+	
 	def load_classes(self):
 		code, buf = self.connect().request(0x0114)
 		if code != 0:
