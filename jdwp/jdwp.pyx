@@ -149,6 +149,14 @@ cdef class JdwpBuffer:
 		cdef uint32_t x
 		einz( jdwp_unpack_u32(&self.buf, &x) )
 		return <int32_t>x
+	def unpackFloat(self):
+		cdef uint32_t x
+		einz( jdwp_unpack_u32(&self.buf, &x) )
+		return <float>x
+	def unpackDouble(self):
+		cdef uint32_t x
+		einz( jdwp_unpack_u32(&self.buf, &x) )
+		return <double>x
 
 	def unpackLong(self):
 		cdef uint64_t x

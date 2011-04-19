@@ -42,16 +42,10 @@ def main(args):
 	p.suspend()
 	try:
 		for t in p.threads:
-			print str(t)
-			for f in t.frames:
-				print "    ", f.loc
-				#if f.loc.loc == -1: continue
-				try:
-					for s in f.loc.slots:
-						print "        ", s
-				except Failure as f:
-					    print "        FAILURE", f.code
-					     				
+			f = t.frames[0]
+			print str(t), f.loc, ('<native>' if f.native else '')
+			for k, v in f.values.items():
+				print "    ", k, "=", v
 	finally:
 		p.resume()
 

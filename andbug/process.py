@@ -33,6 +33,46 @@ class Failure(Exception):
 		Exception.__init__(self, 'request failed, code %s' % code)
 		self.code = code
 
+unpack_value_impl = [None,] * 256
+def register_unpack_value(tag, func):
+	for t in tag:
+		unpack_value_impl[ord(t)] = func
+
+register_unpack_value('[', lambda p, b: b.unpackObjectId())
+register_unpack_value('B', lambda p, b: b.unpackU8())
+register_unpack_value('C', lambda p, b: chr(b.unpackU8()))
+register_unpack_value('F', lambda p, b: b.unpackFloat()) #TODO: TEST
+register_unpack_value('D', lambda p, b: b.unpackDouble()) #TODO:TEST
+register_unpack_value('I', lambda p, b: b.unpackInt())
+register_unpack_value('J', lambda p, b: b.unpackLong())
+register_unpack_value('S', lambda p, b: b.unpackShort()) #TODO: TEST
+register_unpack_value('V', lambda p, b: b.unpackVoid())
+register_unpack_value('Z', lambda p, b: (True if b.unpackU8() else False))
+register_unpack_value('Lstglc', 
+	lambda p, b: p.object(b.unpackObjectId()) 
+) #TODO: IMPL
+
+def unpack_value(proc, buf, tag = None):
+	if tag is None: tag = buf.unpackU8()
+	fn = unpack_value_impl[tag]
+	if fn is None:
+		raise Failure(tag)
+	else:
+		return fn(proc, buf)
+
+	'''
+	elif tag == :#'s'
+		return proc.string(buf.unpackObjectId())
+	elif tag == :#'t'
+		return proc.thread(buf.unpackObjectId())
+	elif tag == :#'g'
+		return proc.threadGroup(proc, buf.unpackObjectId())
+	elif tag == :#'l'
+		return proc.classLoader(proc, buf.unpackObjectId())
+	elif tag == :#'c'
+		return proc.klass(proc, buf.unpackObjectId())
+	'''
+
 class Frame(object):
 	def __init__(self, proc, fid):
 		self.proc = proc
@@ -54,7 +94,69 @@ class Frame(object):
 	
 	def packTo(self, buf):
 		buf.packFrameId(self.fid)
+
+	'''
+
+	def getValues(self, sig):
+		proc = self.proc
+		conn = proc.conn
+		buf = conn.buffer()
+		buf.packObjectId(self.tid)
+		buf.packFrameId(self.fid)
+		#TODO
+		buf.packInt(len(sig))
+		ix = 0 # There may be a better way to determine these indexes
+		for b in sig:
+			buf.packInt(ix)
+			buf.packU8(ord(b))
+			ix += 1
+		print 'sending values request'
+		code, buf = conn.request(0x1001, buf.data())
+		print 'result is code', code
+		if code != 0:
+			raise Failure(code)
+		ct = buf.unpackInt()
+		print 'length is count', ct
+		def load_value():
+			sid = buf.unpackInt()
+			return unpack_value(proc, buf)
+
+		return list(load_value() for x in range(0, ct))
+
+	'''
+
+	@property
+	def native(self):
+		return self.loc.native
+
+	@property
+	def values(self):
+		vals = {}
+		if self.native: return vals
 		
+		proc = self.proc
+		conn = proc.conn
+		buf = conn.buffer()
+		buf.packObjectId(self.tid)
+		buf.packFrameId(self.fid)
+		slots = self.loc.slots
+		buf.packInt(len(slots))
+
+		for slot in slots:
+			buf.packInt(slot.index)
+			buf.packU8(slot.tag) #TODO: GENERICS
+
+		code, buf = conn.request(0x1001, buf.data())
+		if code != 0:
+			raise Failure(code)
+		ct = buf.unpackInt()
+
+		for x in range(0, ct):
+			s = slots[x]
+			vals[s.name] = unpack_value(proc, buf, s.tag)
+
+		return vals
+								
 class Thread(object):
 	def __init__(self, proc, tid):
 		self.proc = proc
@@ -212,7 +314,7 @@ class Slot(object):
 
 	@property
 	def tag(self):
-		return self.jni[0]
+		return ord(self.jni[0])
 
 class Method(object):
 	def __init__(self, proc, cid, mid):
@@ -533,3 +635,17 @@ class Process(object):
 	def klass(self, cid):
 		return self.pool(Class, self, cid)
 		
+	def object(self, oid):
+		#TODO: this should probably be weakref'd.
+		return self.pool(Object, self, oid)
+
+class Object(object):
+	def __init__(self, proc, oid):
+		self.proc = proc
+		self.oid = oid
+
+	def __repr__(self):
+		return '#%x' % self.oid
+	
+#	def __repr__(self):
+#		return '<object %s>' % self
