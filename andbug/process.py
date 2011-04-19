@@ -57,8 +57,18 @@ class Thread(object):
 		self.proc = proc
 		self.tid = tid
 	
+	def __repr__(self):
+		return '<%s>' % self
 	def __str__(self):
-		return '<thread 0x%x>' % self.tid
+		return 'thread %s' % (self.name or hex(self.tid))
+
+	def suspend(self):	
+		conn = self.proc.conn
+		buf = conn.buffer()
+		buf.packObjectId(self.tid)
+		code, buf = conn.request(0x0B01, buf.data())
+		if code != 0:
+			raise Failure(code)
 
 	def resume(self):
 		conn = self.proc.conn
@@ -104,6 +114,16 @@ class Thread(object):
 			raise Failure(code)
 		return buf.unpackInt()
 
+	@property
+	def name(self):	
+		conn = self.proc.conn
+		buf = conn.buffer()
+		buf.packObjectId(self.tid)
+		code, buf = conn.request(0x0B01, buf.data())
+		if code != 0:
+			raise Failure(code)
+		return buf.unpackStr()
+
 class Location(object):
 	def __init__(self, proc, cid, mid, loc):
 		self.proc = proc
@@ -113,9 +133,7 @@ class Location(object):
 		self.line = None
 
 	def __str__(self):
-		return '<loc 0x%x in class %r, method %r>' % (
-			self.loc, self.klass.name, self.method.name
-		)
+		return '%s:$%x' % (self.method, self.loc)
 
 	@property
 	def method(self):

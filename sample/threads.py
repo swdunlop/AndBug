@@ -39,8 +39,14 @@ def main(args):
 
 	port = int(args[1])
 	p = Process(port)
-	for t in p.threads:
-		print t
+	p.suspend()
+	try:
+		for t in p.threads:
+			print str(t)
+			for f in t.frames:
+				print "    ", f.loc
+	finally:
+		p.resume()
 
 if __name__ == '__main__':
 	main(sys.argv)
