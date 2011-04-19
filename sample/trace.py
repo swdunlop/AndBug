@@ -58,15 +58,21 @@ def main(args):
 
 	for l in p.classes(cn).methods(name=mn, jni=jni).get('firstLoc'):
 		l.hook(q)
-		print ':: HOOKED', l
+		print ':::: HOOKED', l
 
+	print
+	print
+	print
+	
 	while True:
 		try:
-			t, l = q.get(True,1)
-			print ':: HIT', l, 'IN', t
+			t, l = q.get()
+			f = t.frames[0]
+			print '[::]', t, f.loc
+			for k,v in f.values.items():
+				print '    ', k, '=', v
+		finally:
 			t.resume()
-		except QueueEmpty:
-			pass
 
 if __name__ == '__main__':
 	main(sys.argv)
