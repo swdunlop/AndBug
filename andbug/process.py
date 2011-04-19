@@ -135,10 +135,10 @@ class Location(object):
 
 	def __str__(self):
 		if self.loc >= 0:
-			return '%s:$%x' % (self.method, self.loc)
+			return '%s:%i' % (self.method, self.loc)
 		else:
 			return str(self.method)
-			
+
 	@property
 	def method(self):
 		return self.proc.pool(Method, self.proc, self.cid, self.mid)
