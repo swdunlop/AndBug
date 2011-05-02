@@ -59,10 +59,8 @@ def main(args):
 	for l in p.classes(cn).methods(name=mn, jni=jni).get('firstLoc'):
 		l.hook(q)
 		print ':::: HOOKED', l
-
-	print
-	print
-	print
+ 
+	print ':::: Waiting for Events'
 	
 	while True:
 		try:
