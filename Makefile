@@ -1,11 +1,11 @@
-test: andbug/jdwp.so
+test: lib/andbug/jdwp.so
 	python setup.py test
 
-andbug/jdwp.so: jdwp/jdwp.c
+lib/andbug/jdwp.so: lib/jdwp/jdwp.c
 	python setup.py build_ext -i
 
-jdwp/jdwp.c: jdwp/jdwp.pyx
-	pyrexc jdwp/jdwp.pyx
+lib/jdwp/jdwp.c: lib/jdwp/jdwp.pyx
+	pyrexc lib/jdwp/jdwp.pyx
 
 clean:
-	rm -rf build */*.o */*.so */*.pyc
+	rm -rf build */*/*.o */*/*.so */*/*.pyc

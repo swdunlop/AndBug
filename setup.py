@@ -50,7 +50,7 @@ class CleanCommand(Command):
                 pass
            
 jdwp = Extension(
-	'andbug.jdwp', ['jdwp/jdwp.c', 'jdwp/wire.c']
+	'andbug.jdwp', ['lib/jdwp/jdwp.c', 'lib/jdwp/wire.c']
 )
 
 setup(
@@ -59,6 +59,7 @@ setup(
 	description = 'The AndBug scriptable Android debugger',
 	author = 'Scott Dunlop',
 	author_email = 'swdunlop@gmail.com',
+	package_dir = {'andbug' : 'lib/andbug'},
 	packages = ['andbug'],
 	ext_modules = [jdwp],
 	cmdclass = { 'test' : TestCommand, 
