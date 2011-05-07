@@ -26,6 +26,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
+#include <stdarg.h>
 
 // Thank you, POSIX, for your shortsightedness, Linux for your haste, and BSD
 // for being as bad as Linux.  Can a brother get a standards update around 
@@ -35,7 +36,7 @@
 #  include <endian.h>
 #  define htonll htobe64
 #  define ntohll be64toh
-#elif defined(__FreeBSD__) || defined(___NetBSD__)
+#elif defined(__FreeBSD__) || defined(___NetBSD__) || defined(ANDROID)
 #  include <sys/endian.h>
 #  define htonll htobe64
 #  define ntohll betoh64
@@ -56,7 +57,10 @@ char *jdwp_en_errors[] = {
 	"jdwp packing operand character not supported",
 	"insufficient jdwp capacity to pack value",
 	"insufficient jdwp length to unpack value",
-	"insufficient heap memory to store data"
+	"insufficient heap memory to store data",
+	"transport closed or end of file reached",
+	"could not complete handshake with process",
+        "a jdwp failure was received"
 };
 
 #define REQUIRE_CAP(n) if (jdwp_expand(buf, (n))) return JDWP_HEAP_FAULT;
@@ -83,7 +87,6 @@ int jdwp_pack_str( jdwp_buffer* buf, uint32_t size, char* data ){
 	jdwp_pack_u32(buf, size);
 	memcpy(buf->data + buf->len, data, size);
 	buf->len += size;
-	buf->len -= size;
     return 0;
 }
 
@@ -320,39 +323,141 @@ int jdwp_unpack_frame_id( jdwp_buffer* buf, uint64_t* id ){
 	return jdwp_unpack_id( buf, id, buf->sSz );
 }
 
-/*
-#define JE(expr) if(0 != (expr)) 
-
-int jdwp_setup( jdwp_buffer* buf, int fd ){
-	int err;
-	uint32_t len, id;
-	uint8_t fl, cs, cmd;
-
-	buf->fd = fd;
-	JE(jdwp_pack( buf, "44111", 11, 1, 0, 1, 7)) return err; // Command 1:7 -- IDSizes;
-	for(;;){
-		JE(jdwp_unpack( buf, "44111", &len, &id, &fl, &cs, &cmd)) return err; // Reply Header
-		len -= 11;
-		if (id != 1) {
-			if (id == 0x80) {
-				return JDWP_PROTO_FAULT;
-			};
-			//TODO: respond to premature commands with an "FU."
-		} else if (!(fl & 0x80)) {
-			return JDWP_PROTO_FAULT;
-			//TODO
-		} else {
-			break; //Got it.  Time to read the message.
-		}
-	}
-
-	JE(jdwp_unpack( buf, "iiiii", 
-					&(buf->fSz), 
-					&(buf->mSz), 
-					&(buf->oSz), 
-					&(buf->tSz), 
-					&(buf->sSz) )) return err; // IDSizes Reply Data
-
-	return 0;					
+/** packs fields into the current buf, writing field by field, and returning when complete */
+int jdwp_packf( jdwp_buffer* buf, char* format, ... ){
+	va_list ap;
+	va_start(ap, format);
+	int err = jdwp_packfv(buf, format, ap);
+	va_end(ap);
+	return err;
 }
-*/
+
+int jdwp_packfv( jdwp_buffer* buf, char* format, va_list ap ){
+	uint32_t v32;
+	uint64_t v64;
+	int err = 0;
+
+	while(*format) {
+		switch(*format++) {
+		case '1':
+			v32 = va_arg(ap, uint32_t);
+			err = jdwp_pack_u8(buf, v32);
+			break;
+		case '2':
+			v32 = va_arg(ap, uint32_t);
+			err = jdwp_pack_u16(buf, v32);
+			break;
+		case '4':
+			v32 = va_arg(ap, uint32_t);
+			err = jdwp_pack_u32(buf, v32);
+			break;
+		case '8':
+			v64 = va_arg(ap, uint64_t);
+			err = jdwp_pack_u64(buf, v64);
+			break;
+		case 'i':
+			v32 = va_arg(ap, uint32_t);
+			err = jdwp_pack_u32(buf, v32);
+			break;
+		case 'l':
+			v64 = va_arg(ap, uint64_t);
+			err = jdwp_pack_u64(buf, v64);
+			break;
+		case 'o':
+			v64 = va_arg(ap, uint64_t);
+			err = jdwp_pack_id(buf, v64, buf->oSz);
+			break;
+		case 't':
+			v64 = va_arg(ap, uint64_t);
+			err = jdwp_pack_id(buf, v64, buf->tSz);
+			break;
+		case 'f':
+			v64 = va_arg(ap, uint64_t);
+			err = jdwp_pack_id(buf, v64, buf->fSz);
+			break;
+		case 's':
+			v64 = va_arg(ap, uint64_t);
+			err = jdwp_pack_id(buf, v64, buf->sSz);
+			break;
+		case 'm':
+			v64 = va_arg(ap, uint64_t);
+			err = jdwp_pack_id(buf, v64, buf->mSz);
+			break;
+		default:
+			err = JDWP_OP_UNSUPPORTED;
+		}
+		if (err) break;
+	};
+	return err;
+}
+
+/** unpacks fields from the current buf, reading field by field, and returning when complete */
+int jdwp_unpackf( jdwp_buffer* buf, char* format, ... ){
+	va_list ap;
+	va_start(ap, format);
+	int err = jdwp_unpackfv(buf, format, ap);
+	va_end(ap);
+	return err;
+}
+
+/** unpacks fields from the current buf, reading field by field, and returning when complete */
+int jdwp_unpackfv( jdwp_buffer* buf, char* format, va_list ap ){
+	uint8_t *v8;
+	uint16_t *v16;
+	uint32_t *v32;
+	uint64_t *v64;
+	int err = 0;
+
+	while(*format) {
+		switch(*format++) {
+		case '1':
+			v8 = va_arg(ap, uint8_t*);
+			err = jdwp_unpack_u8(buf, v8);
+			break;
+		case '2':
+			v16 = va_arg(ap, uint16_t*);
+			err = jdwp_unpack_u16(buf, v16);
+			break;
+		case '4':
+			v32 = va_arg(ap, uint32_t*);
+			err = jdwp_unpack_u32(buf, v32);
+			break;
+		case '8':
+			v64 = va_arg(ap, uint64_t*);
+			err = jdwp_unpack_u64(buf, v64);
+			break;
+		case 'i':
+			v32 = va_arg(ap, uint32_t*);
+			err = jdwp_unpack_u32(buf, v32);
+			break;
+		case 'l':
+			v64 = va_arg(ap, uint64_t*);
+			err = jdwp_unpack_u64(buf, v64);
+			break;
+		case 'o':
+			v64 = va_arg(ap, uint64_t*);
+			err = jdwp_unpack_id(buf, v64, buf->oSz);
+			break;
+		case 't':
+			v64 = va_arg(ap, uint64_t*);
+			err = jdwp_unpack_id(buf, v64, buf->tSz);
+			break;
+		case 'f':
+			v64 = va_arg(ap, uint64_t*);
+			err = jdwp_unpack_id(buf, v64, buf->fSz);
+			break;
+		case 's':
+			v64 = va_arg(ap, uint64_t*);
+			err = jdwp_unpack_id(buf, v64, buf->sSz);
+			break;
+		case 'm':
+			v64 = va_arg(ap, uint64_t*);
+			err = jdwp_unpack_id(buf, v64, buf->mSz);
+			break;
+		default:
+			err = JDWP_OP_UNSUPPORTED;
+		}
+		if (err) break;
+	};
+	return err;
+}

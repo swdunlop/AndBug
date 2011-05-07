@@ -1,3 +1,27 @@
+/* Copyright 2011, Scott W. Dunlop <swdunlop@gmail.com> All rights reserved.
+
+   Redistribution and use in source and binary forms, with or without 
+   modification, are permitted provided that the following conditions are met:
+   
+      1. Redistributions of source code must retain the above copyright notice, 
+         this list of conditions and the following disclaimer.
+   
+      2. Redistributions in binary form must reproduce the above copyright 
+         notice, this list of conditions and the following disclaimer in the 
+         documentation and/or other materials provided with the distribution.
+   
+   THIS SOFTWARE IS PROVIDED BY SCOTT DUNLOP ``AS IS'' AND ANY EXPRESS OR 
+   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES 
+   OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+   IN NO EVENT SHALL SCOTT DUNLOP OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, 
+   INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES 
+   (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
+   SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) 
+   HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, 
+   STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN 
+   ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
+   POSSIBILITY OF SUCH DAMAGE.  */
+   
 #ifndef JDWPBUF_H 
 #define JDWPBUF_H 1
 
@@ -15,14 +39,17 @@
    - Error messages can be found by taking the error code and looking up the entry in jdwp_en_errors.
 */
 
-
 #include <stdint.h>
+#include <stdarg.h>
 
 #define JDWP_SZ_UNSUPPORTED 1
 #define JDWP_OP_UNSUPPORTED 2
 #define JDWP_NEED_CAP 3
 #define JDWP_NEED_LEN 4
 #define JDWP_HEAP_FAULT 5
+#define JDWP_EOF 6
+#define JDWP_HANDSHAKE_ERROR 7
+#define JDWP_FAIL 8
 
 extern char* jdwp_en_errors[];
 
@@ -114,6 +141,18 @@ int jdwp_pack( jdwp_buffer* buf, char format, uint64_t value );
 
 /** unpacks fields from the current buf, reading field by field, and returning when complete */
 int jdwp_unpack( jdwp_buffer* buf, char format, uint64_t* value );
+
+/** packs fields into the current buf, writing field by field, and returning when complete */
+int jdwp_packf( jdwp_buffer* buf, char* format, ... );
+
+/** unpacks fields from the current buf, reading field by field, and returning when complete */
+int jdwp_unpackf( jdwp_buffer* buf, char* format, ... );
+
+/** packs fields into the current buf, writing field by field, and returning when complete */
+int jdwp_packfv( jdwp_buffer* buf, char* format, va_list ap );
+
+/** unpacks fields from the current buf, reading field by field, and returning when complete */
+int jdwp_unpackfv( jdwp_buffer* buf, char* format, va_list ap );
 
 /** returns the size that a format would produce. */
 int jdwp_size( jdwp_buffer* buf, const char format );
