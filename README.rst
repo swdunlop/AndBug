@@ -31,12 +31,18 @@ AndBug is very much a program in flux, as I seperate one-off scripts I have writ
    
    make
 
+6. Adjust $PYTHONPATH ::
+   
+   export PYTHONPATH=`pwd`/lib
+
 Examples
 --------
 
 Examples can be found in the sample directory, but the easiest way to find prepackaged functionality in AndBug is using the "andbug" command directly. ::
     
    ./andbug
+
+This command does not currently have the intelligence to automatically detect when it is running from the source directory and update the PYTHONPATH on the fly to match.  You will want to make sure that PYTHONPATH includes your andbug/lib directory.
 
 License
 -------
