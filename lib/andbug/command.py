@@ -1,20 +1,14 @@
-import os, os.path, sys, getopt, tempfile, imp
+import os, os.path, sys, getopt, tempfile, inspect
 import andbug.proto, andbug.process, andbug.cmd
 from andbug.util import sh
+
+#TODO: make short_opts, long_opts, opt_table a dynamic parsing derivative.
 
 OPTIONS = (
     (int, 'pid', 'the process to be debugged, by pid'),
     (str, 'name', 'the name of the process to be debugged, as found in ps'),
     (str, 'dev', 'the device or emulator to be debugged (see adb)')
 )
-
-SHORT_OPTS = ''.join(opt[1][0] + ':' for opt in OPTIONS)
-LONG_OPTS = list(opt[1] + '=' for opt in OPTIONS)
-OPT_TABLE = {}
-
-for opt in OPTIONS:
-        OPT_TABLE['-' + opt[1][0]] = opt[0], opt[1]
-        OPT_TABLE['--' + opt[1]] = opt[0], opt[1]
 
 class OptionError(Exception):
     pass
@@ -35,12 +29,20 @@ class Context(object):
         self.conn = andbug.proto.connect(self.forward())
         self.proc = andbug.process.Process(self.conn)
 
-    def parse_opts(self, args):
+    def parse_opts(self, args, options=OPTIONS):
+        short_opts = ''.join(opt[1][0] + ':' for opt in options)
+        long_opts = list(opt[1] + '=' for opt in options)
+        opt_table = {}
+
+        for opt in options:
+                opt_table['-' + opt[1][0]] = opt[0], opt[1]
+                opt_table['--' + opt[1]] = opt[0], opt[1]
+
         t = {}
-        opts, args = getopt.gnu_getopt(args, SHORT_OPTS, LONG_OPTS)
+        opts, args = getopt.gnu_getopt(args, short_opts, long_opts)
 
         for o, v in opts:
-            conv, key = OPT_TABLE[o]
+            conv, key = opt_table[o]
             try:
                 v = conv(v)
             except:
@@ -99,13 +101,21 @@ class Context(object):
         act = ACTION_MAP.get(cmd)
 
         if not act:
-            print "andbug: command %s not supported." % cmd
+            print 'andbug: command "%s" not supported.' % cmd
             return False
 
-        args = self.parse_opts(args)
-        self.connect()
-        act(self, *args)
-        return True
+        args = self.parse_opts(args, act.opts)
+        argct = len(args) + 1 
+        if argct < act.arity:
+            print 'andbug: command "%s" requires more arguments.' % cmd
+            return False
+        elif argct > act.arity:
+            print 'andbug: too many arguments for command "%s."' % cmd
+            return False
+        else:
+            self.connect()
+            act(self, *args)
+            return True
         
 ACTION_LIST = []
 ACTION_MAP = {}
@@ -113,11 +123,17 @@ ACTION_MAP = {}
 def bind_action(name, fn):
     ACTION_LIST.append(fn)
     ACTION_MAP[name] = fn
-    print ACTION_MAP
 
-def action(usage):
+def action(usage, opts = ()):
+    opts = OPTIONS[:] + opts
+
     def bind(fn):
         fn.usage = usage
+        fn.opts = opts
+        spec = inspect.getargspec(fn)
+        defct = len(spec.defaults) if spec.defaults else 0
+        argct = len(spec.args) if spec.args else 0
+        fn.arity = argct - defct
         bind_action(fn.__name__, fn)
     return bind
 
