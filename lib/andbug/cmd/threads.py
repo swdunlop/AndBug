@@ -27,27 +27,16 @@ import sys
 from getopt import getopt
 from andbug.process import Process, Failure
 
-def usage(name):
-	print 'usage: %s port' % name
-	print '   ex: %s 9012' % name
-	print ''
-	sys.exit(2)
+import andbug.command
 
-def main(args):
-	if len(args) != 2:
-		usage(args[0])
-
-	port = int(args[1])
-	p = Process(port)
-	p.suspend()
-	try:
-		for t in p.threads:
-			f = t.frames[0]
-			print str(t), f.loc, ('<native>' if f.native else '')
-			for k, v in f.values.items():
-				print "    ", k, "=", v
-	finally:
-		p.resume()
-
-if __name__ == '__main__':
-	main(sys.argv)
+@andbug.command.action('')
+def threads(ctxt):
+    ctxt.proc.suspend()
+    try:
+        for t in ctxt.proc.threads:
+            f = t.frames[0]
+            print str(t), f.loc, ('<native>' if f.native else '')
+            for k, v in f.values.items():
+                print "    ", k, "=", v
+    finally:
+        ctxt.proc.resume()
