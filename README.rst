@@ -2,22 +2,41 @@
 AndBug -- A Scriptable Android Debugger
 =======================================
 
+AndBug is a debugger targeting the Android platform's Dalvik virtual machine intended for reverse engineers and developers.  It uses the same interfaces as Android's Eclipse debugging plugin, the Java Debug Wire Protocol (JDWP) and Dalvik Debug Monitor (DDM) to permit users to hook Dalvik methods, examine process state, and even perform changes.
 
-AndBug is a Java Debugging Wire Protocol implementation in Python, Pyrex and C intended to provide reverse engineers with a toolset for hooking, tracing and hacking Android Dalvik applications.  
+Unlike Google's own Android Software Development Kit debugging tools, AndBug does not require or expect source code.  It does, however, require that you have some level of comfort with Python, as it uses a concept of scripted breakpoints, called "hooks", for most nontrivial tasks.  (If you just want to dump loaded classes, methods, or threads, there are example scripts for that.)
 
-Unlike JDB, Eclipse and JSWat, AndBug does not expect or require source code -- doing its best to let you work without requiring awkward shims like using Baksmali disassemblies as poor substitutes for the real file.  Also, unlike these other fine products, AndBug doesn't offer a GUI or even a CLI; you're going to have to get comfortable with Python.
+At IOActive, I use AndBug and tools like it every day to study the Android platform and understand customer applications.  It is a living tool which has lead to discovering a number of vulnerabilities by chasing process flow across the system and exposing how weak the Android process isolation model really is, once you get under the hood.  I hope you enjoy it, and welcome any improvements or suggestions.
 
+-- Scott Dunlop <swdunlop@gmail.com>
 
 Installation
 ------------
 
-Don't. I'm not kidding. You really don't want to.  It'll maim your kids, it'll kick your dog.  It'll rip the tags off your mattress.  It's not ready, yet.
+AndBug is very much a program in flux, as I seperate one-off scripts I have written at IOActive for various tasks from customer and IOActive-proprietary contexts.  I do not recommend installation at this time, as you will want to update it frequently afterwards.  AndBug runs very nicely from its own source directory with very little setup.
 
+1. Install the Android Software Development Kit from https://developer.android.com/sdk/index.html
+
+2. Ensure the Android Debugging Bridge is in your $PATH and usable. ::
+   
+   adb devices
+
+3. Ensure you have a good Python and GNU toolchain for your platform.  You will need GCC, and Make.  You may also want Pyrex, if you want to make changes at the primitive layer.
+
+4. Pull the latest AndBug code from https://github.com/swdunlop/AndBug.git ::
+
+   git clone https://github.com/swdunlop/AndBug.git
+
+5. Build using Make ::
+   
+   make
 
 Examples
 --------
 
-See, your dog just got kicked. I wasn't kidding.
+Examples can be found in the sample directory, but the easiest way to find prepackaged functionality in AndBug is using the "andbug" command directly. ::
+    
+   ./andbug
 
 License
 -------
