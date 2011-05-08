@@ -1,17 +1,19 @@
-import os, os.path, sys, getopt, tempfile, inspect
+import os, os.path, sys, getopt, tempfile, inspect, re
 import andbug.proto, andbug.process, andbug.cmd
 from andbug.util import sh
 
 #TODO: make short_opts, long_opts, opt_table a dynamic parsing derivative.
 
 OPTIONS = (
-    (int, 'pid', 'the process to be debugged, by pid'),
-    (str, 'name', 'the name of the process to be debugged, as found in ps'),
-    (str, 'dev', 'the device or emulator to be debugged (see adb)')
+    ('pid', 'the process to be debugged, by pid or name'),
+    #(str, 'name', 'the name of the process to be debugged, as found in ps'),
+    ('dev', 'the device or emulator to be debugged (see adb)')
 )
 
 class OptionError(Exception):
     pass
+
+RE_INT = re.compile('^[0-9]+$')
 
 class Context(object):
     def __init__(self):
@@ -30,27 +32,26 @@ class Context(object):
         self.proc = andbug.process.Process(self.conn)
 
     def parse_opts(self, args, options=OPTIONS):
-        short_opts = ''.join(opt[1][0] + ':' for opt in options)
-        long_opts = list(opt[1] + '=' for opt in options)
+        short_opts = ''.join(opt[0][0] + ':' for opt in options)
+        long_opts = list(opt[0] + '=' for opt in options)
         opt_table = {}
 
         for opt in options:
-                opt_table['-' + opt[1][0]] = opt[0], opt[1]
-                opt_table['--' + opt[1]] = opt[0], opt[1]
+                opt_table['-' + opt[0][0]] = opt[0]
+                opt_table['--' + opt[0]] = opt[0]
 
-        t = {}
         opts, args = getopt.gnu_getopt(args, short_opts, long_opts)
 
-        for o, v in opts:
-            conv, key = opt_table[o]
-            try:
-                v = conv(v)
-            except:
-                v = None
-            t[key] = v
-
+        opts = list((opt_table[k], v) for k, v in opts)
+        t = {}
+        for k, v in opts: t[k] = v
+        
         pid = t.get('pid')
-        name = t.get('name')
+        if RE_INT.match(pid):
+            name = None
+        else:
+            name = pid
+            pid = None
         dev = t.get('dev')
 
         if dev:
@@ -70,9 +71,7 @@ class Context(object):
 
         ps = ('adb', 'shell', 'ps', '-s', dev) if dev else ('adb', 'shell', 'ps') 
         
-        if pid and name:
-            raise OptionError('pid and process name options should not be combined')
-        elif pid:
+        if pid:
             if pid not in map( 
                 lambda x: x.split()[1], 
                 sh(('adb', 'shell', 'ps')).splitlines()[1:]
@@ -92,7 +91,7 @@ class Context(object):
 
         self.pid = pid
         self.dev = dev
-        return args
+        return args, opts
 
     def perform(self, cmd, args):
         if cmd == 'help':
@@ -104,18 +103,23 @@ class Context(object):
             print 'andbug: command "%s" not supported.' % cmd
             return False
 
-        args = self.parse_opts(args, act.opts)
+        args, opts = self.parse_opts(args, act.opts)
         argct = len(args) + 1 
+
         if argct < act.arity:
             print 'andbug: command "%s" requires more arguments.' % cmd
             return False
         elif argct > act.arity:
             print 'andbug: too many arguments for command "%s."' % cmd
             return False
-        else:
-            self.connect()
-            act(self, *args)
-            return True
+
+        opts = filter(lambda opt: opt[0] in act.keys, opts)        
+        kwargs  = {}
+        for k, v in opts: kwargs[k] = v
+
+        self.connect()
+        act(self, *args, **kwargs)
+        return True
         
 ACTION_LIST = []
 ACTION_MAP = {}
@@ -125,11 +129,10 @@ def bind_action(name, fn):
     ACTION_MAP[name] = fn
 
 def action(usage, opts = ()):
-    opts = OPTIONS[:] + opts
-
     def bind(fn):
         fn.usage = usage
-        fn.opts = opts
+        fn.opts = OPTIONS[:] + opts
+        fn.keys = list(opt[0] for opt in opts)
         spec = inspect.getargspec(fn)
         defct = len(spec.defaults) if spec.defaults else 0
         argct = len(spec.args) if spec.args else 0
@@ -154,8 +157,8 @@ def run_command(args):
 
 def list_commands():
     print ":: Standard Options ::"
-    for t, k, d in OPTIONS:
-        print "\t-%s, --%s <%s>  \t%s" % (k[0], k, t.__name__, d)
+    for k, d in OPTIONS:
+        print "\t-%s, --%s <opt>  \t%s" % (k[0], k, d)
     print
     print ":: Commands ::"
     for row in ACTION_LIST:

@@ -26,10 +26,11 @@
 import andbug.command, andbug.options
 
 @andbug.command.action('<class-name> [-n <name>] [-j <jni-signature>]', opts=(
-    (str, 'name', 'method name'),
-    (str, 'jni', 'method jni signature')
+    ('name', 'method name'),
+    ('jni', 'method jni signature')
 ))
 def methods(ctxt, cname, name=None, jni=None):
+    'lists the methods of a class'
     cn = andbug.options.parse_cname(cname)
     for m in ctxt.proc.classes(cn).methods(name=name, jni=jni):
         print m #m.name, m.jni, m.firstLoc, m.lastLoc

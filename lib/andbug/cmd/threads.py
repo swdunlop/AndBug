@@ -31,6 +31,7 @@ import andbug.command
 
 @andbug.command.action('')
 def threads(ctxt):
+    'lists threads in the process'
     ctxt.proc.suspend()
     try:
         for t in ctxt.proc.threads:
