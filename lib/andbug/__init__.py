@@ -1,3 +1,2 @@
-import jdwp, proto, log
+import jdwp, proto, log, command
 connect = proto.connect
-

@@ -466,13 +466,11 @@ def unpack_method_entry(proc, buf):
 register_unpack_impl(40, unpack_method_entry)
 
 class Process(object):
-    def __init__(self, portno = None, conn = None):
+    def __init__(self, conn = None):
         self.pool = andbug.data.pool()
         self.conn = conn
         self.emap = {}
         self.ectl = Lock()
-        if conn is None:
-            self.connect(portno)
 
     def hook(self, ident, queue = None):
         return Hook(self, ident, queue)

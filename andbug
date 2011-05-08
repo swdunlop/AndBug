@@ -1,0 +1,13 @@
+#!/usr/bin/env python
+import andbug, sys, os, os.path
+import andbug.cmd
+
+inv = os.path.basename(sys.argv[0]).lower()
+if inv == "andbug":
+        args = sys.argv[1:]
+else:
+        args = [inv] + sys.argv[1:]
+
+andbug.command.load_commands()
+andbug.command.run_command(args)
+#(args)

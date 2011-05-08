@@ -63,5 +63,6 @@ setup(
 	packages = ['andbug'],
 	ext_modules = [jdwp],
 	cmdclass = { 'test' : TestCommand, 
-				 'clean' : CleanCommand }
+				 'clean' : CleanCommand },
+    scripts = ['andbug']
 )

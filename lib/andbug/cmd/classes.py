@@ -23,26 +23,12 @@
 ## ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
 ## POSSIBILITY OF SUCH DAMAGE.
 
-import sys
-from getopt import getopt
-from andbug.process import Process
+import andbug.command
 
-def usage(name):
-	print 'usage: %s port' % name
-	print '   ex: %s 9012' % name
-	print ''
-	sys.exit(2)
-
-def main(args):
-	if len(args) != 2:
-		usage(args[0])
-
-	port = int(args[1])
-	p = Process(port)
-	for c in p.classes():
-		n = c.jni
-		if n.startswith('L') and n.endswith(';'):
-			print n[1:-1].replace('/', '.')
-
-if __name__ == '__main__':
-	main(sys.argv)
+@andbug.command.action('')
+def classes(ctxt):
+    'lists loaded classes'
+    for c in ctxt.proc.classes():
+        n = c.jni
+        if n.startswith('L') and n.endswith(';'):
+            print n[1:-1].replace('/', '.')
