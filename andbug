@@ -20,7 +20,8 @@ if not args or (args == ['help']):
         print "\t%s\t\t\t%s" % (row.__name__, row.__doc__)
     print
     print ":: Examples ::"
-    print "\tandbug classes -n com.ioactive.decoy"
+    print "\tandbug classes -p com.ioactive.decoy"
+    print "\tandbug methods -p com.ioactive.decoy.DecoyActivity onInit"
 else:
     andbug.command.load_commands()
     andbug.command.run_command(args)
