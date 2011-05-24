@@ -6,7 +6,6 @@ from andbug.util import sh
 
 OPTIONS = (
     ('pid', 'the process to be debugged, by pid or name'),
-    #(str, 'name', 'the name of the process to be debugged, as found in ps'),
     ('dev', 'the device or emulator to be debugged (see adb)')
 )
 
@@ -31,7 +30,7 @@ class Context(object):
         self.conn = andbug.proto.connect(self.forward())
         self.proc = andbug.process.Process(self.conn)
 
-    def parse_opts(self, args, options=OPTIONS):
+    def parse_opts(self, args, options=OPTIONS, proc=True):
         short_opts = ''.join(opt[0][0] + ':' for opt in options)
         long_opts = list(opt[0] + '=' for opt in options)
         opt_table = {}
@@ -46,14 +45,25 @@ class Context(object):
         t = {}
         for k, v in opts: t[k] = v
         
-        pid = t.get('pid')
-        if RE_INT.match(pid):
+        if proc:
+            pid = t.get('pid')
             name = None
-        else:
-            name = pid
-            pid = None
-        dev = t.get('dev')
 
+            if pid is None:
+                pass # do nothing
+            elif RE_INT.match(pid):
+                pass # continue to do nothing
+            else:
+                name = pid
+                pid = None
+
+            dev = t.get('dev')
+
+            self.find_dev(dev)
+            self.find_pid(dev, pid, name)
+        return args, opts
+
+    def find_dev(self, dev=None):
         if dev:
             if dev not in map( 
                 lambda x: x.split()[0], 
@@ -69,8 +79,11 @@ class Context(object):
                 )
             self.dev = None
 
+        self.dev = dev
+    
+    def find_pid(self, dev=None, pid=None, name=None):
         ps = ('adb', 'shell', 'ps', '-s', dev) if dev else ('adb', 'shell', 'ps') 
-        
+
         if pid:
             if pid not in map( 
                 lambda x: x.split()[1], 
@@ -90,26 +103,21 @@ class Context(object):
             raise OptionError('process pid or name must be specified')
 
         self.pid = pid
-        self.dev = dev
-        return args, opts
 
     def perform(self, cmd, args):
-        if cmd == 'help':
-            list_commands()
-            return False
         act = ACTION_MAP.get(cmd)
 
         if not act:
             print 'andbug: command "%s" not supported.' % cmd
             return False
 
-        args, opts = self.parse_opts(args, act.opts)
+        args, opts = self.parse_opts(args, act.opts, act.proc)
         argct = len(args) + 1 
 
-        if argct < act.arity:
+        if argct < act.min_arity:
             print 'andbug: command "%s" requires more arguments.' % cmd
             return False
-        elif argct > act.arity:
+        elif argct > act.max_arity:
             print 'andbug: too many arguments for command "%s."' % cmd
             return False
 
@@ -117,7 +125,7 @@ class Context(object):
         kwargs  = {}
         for k, v in opts: kwargs[k] = v
 
-        self.connect()
+        if act.proc: self.connect()
         act(self, *args, **kwargs)
         return True
         
@@ -128,20 +136,21 @@ def bind_action(name, fn):
     ACTION_LIST.append(fn)
     ACTION_MAP[name] = fn
 
-def action(usage, opts = ()):
+def action(usage, opts = (), proc = True):
     def bind(fn):
+        fn.proc = proc
         fn.usage = usage
         fn.opts = OPTIONS[:] + opts
         fn.keys = list(opt[0] for opt in opts)
         spec = inspect.getargspec(fn)
         defct = len(spec.defaults) if spec.defaults else 0
         argct = len(spec.args) if spec.args else 0
-        fn.arity = argct - defct
+        fn.min_arity = argct - defct
+        fn.max_arity = argct
         bind_action(fn.__name__, fn)
     return bind
 
 CMD_DIR_PATH = os.path.abspath(os.path.join( os.path.dirname(__file__), "cmd" ))
-
 def load_commands():
     import pkgutil, andbug.cmd
     for name in os.listdir(CMD_DIR_PATH):
@@ -153,18 +162,11 @@ def load_commands():
 
 def run_command(args):
     ctxt = Context()
+    ix = 0
+    for item in args:
+            if item in ('-h', '--help', '-?', '-help'):
+                    args = ('help', args[0])
+                    print args
+                    break
+            ix += 1
     return ctxt.perform(args[0], args[1:])
-
-def list_commands():
-    print ":: Standard Options ::"
-    for k, d in OPTIONS:
-        print "\t-%s, --%s <opt>  \t%s" % (k[0], k, d)
-    print
-    print ":: Commands ::"
-    for row in ACTION_LIST:
-        print "\t%s\t\t\t%s" % (row.__name__, row.__doc__)
-    print
-    print ":: Examples ::"
-    print "\tandbug classes -n com.ioactive.decoy"
-
-

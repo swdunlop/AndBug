@@ -59,10 +59,15 @@ setup(
 	description = 'The AndBug scriptable Android debugger',
 	author = 'Scott Dunlop',
 	author_email = 'swdunlop@gmail.com',
-	package_dir = {'andbug' : 'lib/andbug'},
-	packages = ['andbug'],
+	package_dir = {
+		'andbug' : 'lib/andbug',
+		'andbug.cmd' : 'lib/andbug/cmd'
+	},
+	packages = ['andbug', 'andbug.cmd'],
 	ext_modules = [jdwp],
-	cmdclass = { 'test' : TestCommand, 
-				 'clean' : CleanCommand },
+	cmdclass = { 
+		'test' : TestCommand, 
+		'clean' : CleanCommand 
+	},
     scripts = ['andbug']
 )

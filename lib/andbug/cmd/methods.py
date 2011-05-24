@@ -25,12 +25,9 @@
 
 import andbug.command, andbug.options
 
-@andbug.command.action('<class-name> [-n <name>] [-j <jni-signature>]', opts=(
-    ('name', 'method name'),
-    ('jni', 'method jni signature')
-))
-def methods(ctxt, cname, name=None, jni=None):
+@andbug.command.action('<class-path> [<method-query>]')
+def methods(ctxt, cpath, mquery=None):
     'lists the methods of a class'
-    cn = andbug.options.parse_cname(cname)
-    for m in ctxt.proc.classes(cn).methods(name=name, jni=jni):
-        print m #m.name, m.jni, m.firstLoc, m.lastLoc
+    cpath, mname, mjni = andbug.options.parse_mquery(cpath, mquery)
+    for m in ctxt.proc.classes(cpath).methods(name=mname, jni=mjni):
+        print m

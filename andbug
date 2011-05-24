@@ -1,13 +1,26 @@
 #!/usr/bin/env python
 import andbug, sys, os, os.path
-import andbug.cmd
+import andbug.cmd, andbug.command
 
 inv = os.path.basename(sys.argv[0]).lower()
+
 if inv == "andbug":
         args = sys.argv[1:]
 else:
         args = [inv] + sys.argv[1:]
 
-andbug.command.load_commands()
-andbug.command.run_command(args)
-#(args)
+if not args or (args == ['help']):
+    andbug.command.load_commands()
+    print ":: Standard Options ::"
+    for k, d in andbug.command.OPTIONS:
+        print "\t-%s, --%s <opt>  \t%s" % (k[0], k, d)
+    print
+    print ":: Commands ::"
+    for row in andbug.command.ACTION_LIST:
+        print "\t%s\t\t\t%s" % (row.__name__, row.__doc__)
+    print
+    print ":: Examples ::"
+    print "\tandbug classes -n com.ioactive.decoy"
+else:
+    andbug.command.load_commands()
+    andbug.command.run_command(args)
