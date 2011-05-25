@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 import andbug, sys, os, os.path
 import andbug.cmd, andbug.command
+from Queue import Queue, Empty
+import threading, traceback
 
 inv = os.path.basename(sys.argv[0]).lower()
 
@@ -24,4 +26,25 @@ if not args or (args == ['help']):
     print "\tandbug methods -p com.ioactive.decoy.DecoyActivity onInit"
 else:
     andbug.command.load_commands()
-    andbug.command.run_command(args)
+
+    # this mess is to work around python's ctrl-c insanity
+    q = Queue();
+    
+    def main():
+        try:
+            q.put(andbug.command.run_command(args))
+        except Exception as exc:
+            traceback.print_exc()
+            q.put(-1)
+    
+    threading.Thread(target=main).start()
+    try:
+        while True:
+            try:
+                ret = q.get(True, .01)
+                if ret is not None: 
+                    sys.exit(ret)
+            except Empty:
+                pass # sigh
+    except KeyboardInterrupt:
+        sys.exit(1)
