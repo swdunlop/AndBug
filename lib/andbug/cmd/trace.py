@@ -26,39 +26,21 @@
 import sys
 import andbug.command
 from getopt import getopt
-from andbug.options import parse_mquery, format_mjni
+from andbug.options import parse_mquery, format_mjni, parse_cpath
 from Queue import Queue, Empty as QueueEmpty
 
-'''
-def parse_options(opts):
-    path, jni = None, None
-    opts, args = getopt(sys.argv[1:], 'n:j:')
-    for opt, val in opts:
-        if opt == '-n':
-            path = path
-        elif opt == '-j':
-            jni = val
-    return path, jni, args
-
-def usage(path):
-    print 'usage: %s [-n method-path] [-j method-jni-signature] port class' % path
-    print '   ex: %s -n <init> 9012 java.net.URL' % path
-    print ''
-    sys.exit(2)
-'''
-
-@andbug.command.action('<class-path> [<method-spec>]')
-def trace(ctxt, cpath, mquery=None):
+@andbug.command.action('<class-path>')
+def trace(ctxt, cpath):
     'reports calls to dalvik methods associated with a class'
     q = Queue()    
-    cpath, mname, mjni = parse_mquery(cpath, mquery)
 
+    cpath = parse_cpath(cpath)
     print '[::] setting hooks'
-    for l in ctxt.proc.classes(cpath).methods(name=mname, jni=mjni).get('firstLoc'):
-        l.hook(q)
-        print '[::] hooked', l
+    for c in ctxt.proc.classes(cpath):
+        c.hookEntries(q)
+        print '[::] hooked', c
     print '[::] hooks set'
-    
+
     while True:
         try:
             t, l = q.get()

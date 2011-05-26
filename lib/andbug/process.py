@@ -279,7 +279,7 @@ class Method(object):
         if code != 0: raise Failure(code)
         
         f, l, ct = buf.unpack('88i')
-        if (f == -1) or (l == -1): 
+        if (f == -1) or (l == -1):             
             self.firstLoc = None
             self.lastLoc = None
             self.lineTable = andbug.data.view([])
@@ -351,6 +351,17 @@ class Class(object):
     def __repr__(self):
         return '<class %s>' % self
 
+    def hookEntries(self, queue):
+        conn = self.proc.conn
+        buf = conn.buffer()
+        # 40:EK_METHOD_ENTRY, 1: SP_THREAD, 1 condition of type ClassRef (4)
+        buf.pack('11i1t', 40, 1, 1, 4, self.cid) 
+        code, buf = conn.request(0x0F01, buf.data())
+        if code != 0:
+            raise Failure(code)
+        eid = buf.unpackInt()
+        return self.proc.hook(eid, queue)
+        
     def load_methods(self):
         cid = self.cid
         proc = self.proc
@@ -471,24 +482,27 @@ class Process(object):
         self.conn = conn
         self.emap = {}
         self.ectl = Lock()
+        if conn is not None:
+            conn.hook(0x4064, self.processEvent)
+            #TODO: REDUNDANT
 
     def hook(self, ident, queue = None):
         return Hook(self, ident, queue)
 
     def processEvent(self, ident, buf):
         pol, ct = buf.unpack('1i')
+
         for i in range(0,ct):
             ek = buf.unpackU8()
             im = unpack_impl[ek]
             if im is None:
                 raise Failure(ek)
-
             evt = im(self, buf)
             with self.ectl:
                 hook = self.emap.get(evt[0])
             if hook is not None:
                 hook.put(evt[1:])
-                                
+                          
     def connect(self, portno = None):
         if portno: 
             self.portno = portno

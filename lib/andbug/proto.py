@@ -26,6 +26,7 @@
 import socket
 from threading import Thread, Lock
 from andbug.jdwp import JdwpBuffer
+import andbug.log
 from Queue import Queue, Empty as EmptyQueue
 
 class EOF(Exception):
@@ -193,7 +194,6 @@ class Connection(Thread):
     def processResponse(self, ident, code, data):
         'used internally by the processor; must have recv control'        
         chan = self.qmap.pop(ident, None)
-        
         if not chan: return
         buf = JdwpBuffer()
         buf.config(*self.sizes)
@@ -206,6 +206,7 @@ class Connection(Thread):
         you cannot safely issue requests here -- therefore, you should generally
         pass the call to a queue.
         '''
+
         with self.xmitlock:
             self.bindqueue.put(('r', code, func))
         
