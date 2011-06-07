@@ -17,7 +17,8 @@ from andbug.data import defer
 from threading import Lock
 from Queue import Queue
 
-class Failure(Exception):
+class RequestError(Exception):
+    'raised when a request for more information from the process fails'
     def __init__(self, code):
         Exception.__init__(self, 'request failed, code %s' % code)
         self.code = code
@@ -67,7 +68,7 @@ class Frame(object):
 
         code, buf = conn.request(0x1001, buf.data())
         if code != 0:
-            raise Failure(code)
+            raise RequestError(code)
         ct = buf.unpackInt()
 
         for x in range(0, ct):
@@ -93,7 +94,7 @@ class Thread(object):
         buf.packObjectId(self.tid)
         code, buf = conn.request(0x0B01, buf.data())
         if code != 0:
-            raise Failure(code)
+            raise RequestError(code)
 
     def resume(self):
         conn = self.proc.conn
@@ -101,7 +102,7 @@ class Thread(object):
         buf.pack('o', self.tid)
         code, buf = conn.request(0x0B03, buf.data())
         if code != 0:
-            raise Failure(code)
+            raise RequestError(code)
 
     def packTo(self, buf):
         buf.packObjectId(self.tid)
@@ -120,7 +121,7 @@ class Thread(object):
         buf.pack('oii', self.tid, 0, -1)
         code, buf = conn.request(0x0B06, buf.data())
         if code != 0:
-            raise Failure(code)
+            raise RequestError(code)
         ct = buf.unpackInt()
 
         def load_frame():
@@ -138,7 +139,7 @@ class Thread(object):
         buf.packObjectId(self.tid)
         code, buf = conn.request(0x0B07, buf.data())
         if code != 0:
-            raise Failure(code)
+            raise RequestError(code)
         return buf.unpackInt()
 
     @property
@@ -148,7 +149,7 @@ class Thread(object):
         buf.packObjectId(self.tid)
         code, buf = conn.request(0x0B01, buf.data())
         if code != 0:
-            raise Failure(code)
+            raise RequestError(code)
         return buf.unpackStr()
 
 class Location(object):
@@ -183,7 +184,7 @@ class Location(object):
         self.packTo(buf)
         code, buf = conn.request(0x0F01, buf.data())
         if code != 0:
-            raise Failure(code)
+            raise RequestError(code)
         eid = buf.unpackInt()
         return self.proc.hook(eid, queue)
     
@@ -265,7 +266,7 @@ class Method(object):
         mid = self.mid
         data = conn.buffer().pack('om', cid, mid)
         code, buf = conn.request(0x0601, data)
-        if code != 0: raise Failure(code)
+        if code != 0: raise RequestError(code)
         
         f, l, ct = buf.unpack('88i')
         if (f == -1) or (l == -1):             
@@ -309,7 +310,7 @@ class Method(object):
         mid = self.mid
         data = conn.buffer().pack('om', cid, mid)
         code, buf = conn.request(0x0605, data)
-        if code != 0: raise Failure(code)
+        if code != 0: raise RequestError(code)
     
         act, sct = buf.unpack('ii')
         #TODO: Do we care about the argCnt ?
@@ -347,7 +348,7 @@ class Class(object):
         buf.pack('11i1t', 40, 1, 1, 4, self.cid) 
         code, buf = conn.request(0x0F01, buf.data())
         if code != 0:
-            raise Failure(code)
+            raise RequestError(code)
         eid = buf.unpackInt()
         return self.proc.hook(eid, queue)
         
@@ -360,7 +361,7 @@ class Class(object):
         buf.pack("t", cid)
         code, buf = conn.request(0x020F, buf.data())
         if code != 0:
-            raise Failure(code)
+            raise RequestError(code)
 
         ct = buf.unpackU32()
                 
@@ -451,7 +452,7 @@ def unpack_events(proc, buf):
         ek = buf.unpackU8()
         im = unpack_impl[ek]
         if im is None:
-            raise Failure(ek)
+            raise RequestError(ek)
         else:
             yield im(proc, buf)
 
@@ -485,7 +486,7 @@ class Process(object):
             ek = buf.unpackU8()
             im = unpack_impl[ek]
             if im is None:
-                raise Failure(ek)
+                raise RequestError(ek)
             evt = im(self, buf)
             with self.ectl:
                 hook = self.emap.get(evt[0])
@@ -504,7 +505,7 @@ class Process(object):
     def load_classes(self):
         code, buf = self.connect().request(0x0114)
         if code != 0:
-            raise Failure(code)
+            raise RequestError(code)
 
         def load_class():
             tag, cid, jni, gen, flags = buf.unpack('1t$$i')
@@ -538,7 +539,7 @@ class Process(object):
         pool = self.pool
         code, buf = self.conn.request(0x0104, '')
         if code != 0:
-            raise Failure(code)
+            raise RequestError(code)
         ct = buf.unpackInt()
 
         def load_thread():
@@ -549,12 +550,12 @@ class Process(object):
     def suspend(self):
         code, buf = self.conn.request(0x0108, '')
         if code != 0:
-            raise Failure(code)
+            raise RequestError(code)
 
     def resume(self):
         code, buf = self.conn.request(0x0109, '')
         if code != 0:
-            raise Failure(code)
+            raise RequestError(code)
 
     def exit(self, code = 0):
         conn = self.proc.conn
@@ -562,7 +563,7 @@ class Process(object):
         buf.pack('i', code)
         code, buf = conn.request(0x0108, '')
         if code != 0:
-            raise Failure(code)
+            raise RequestError(code)
 
 class RefType(object):
     def __init__(self, proc, tag, tid):
@@ -586,7 +587,7 @@ class RefType(object):
         self.packTo(buf)
         code, buf = conn.request(0x020d, buf.data())
         if code != 0:
-            raise Failure(code)
+            raise RequestError(code)
         self.jni = buf.unpackStr()
         self.gen = buf.unpackStr()
 
@@ -622,7 +623,7 @@ class Object(object):
         self.packTo(buf)
         code, buf = conn.request(0x0901, buf.data())
         if code != 0:
-            raise Failure(code)
+            raise RequestError(code)
         self.reftype = RefType.unpackFrom(self.proc, buf)
     
     reftype = defer(load_reftype, 'reftype')
@@ -641,7 +642,7 @@ class String(Object):
         self.packTo(buf)
         code, buf = conn.request(0x0A01, buf.data())
         if code != 0:
-            raise Failure(code)
+            raise RequestError(code)
         return buf.unpackStr()
 
 unpack_value_impl = [None,] * 256
@@ -667,7 +668,7 @@ def unpack_value(proc, buf, tag = None):
     if tag is None: tag = buf.unpackU8()
     fn = unpack_value_impl[tag]
     if fn is None:
-        raise Failure(tag)
+        raise RequestError(tag)
     else:
         return fn(proc, buf)
 
