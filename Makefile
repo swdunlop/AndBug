@@ -1,5 +1,5 @@
 test: lib/andbug/jdwp.so
-	python setup.py test
+	PYTHONPATH=lib python setup.py test
 
 lib/andbug/jdwp.so: lib/jdwp/jdwp.c
 	python setup.py build_ext -i
