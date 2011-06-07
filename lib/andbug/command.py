@@ -29,9 +29,11 @@ class OptionError(Exception):
 RE_INT = re.compile('^[0-9]+$')
 
 class Context(object):
+    'an andbug command context'
+    
     def __init__(self):
         self.conn = None
-        self.proc = None
+        self.sess = None
 
     def forward(self):
         temp = tempfile.mktemp()
@@ -42,7 +44,7 @@ class Context(object):
 
     def connect(self):
         self.conn = andbug.proto.connect(self.forward())
-        self.proc = andbug.process.Process(self.conn)
+        self.sess = andbug.process.Session(self.conn)
 
     def parse_opts(self, args, options=OPTIONS, proc=True):
         short_opts = ''.join(opt[0][0] + ':' for opt in options)

@@ -14,8 +14,6 @@
 
 import sys
 from getopt import getopt
-from andbug.process import Process, Failure
-
 import andbug.command
 
 @andbug.command.action('')
