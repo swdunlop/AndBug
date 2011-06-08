@@ -93,14 +93,14 @@ method-rgx=(([a-z][a-zA-Z0-9]{2,30})|(__.*__))$
 attr-rgx=[a-z_][a-z0-9_]{2,30}$
 
 # Regular expression which should only match correct argument names
-argument-rgx=[a-z_][a-z0-9_]{2,30}$
+argument-rgx=[a-z_][a-z0-9_]*$
 
 # Regular expression which should only match correct variable names
-variable-rgx=[a-z_][a-z0-9_]{2,30}$
+variable-rgx=[a-z_][a-z0-9_]*$
 
 # Regular expression which should only match correct list comprehension /
 # generator expression variable names
-inlinevar-rgx=[a-z_][a-z0-9_]{2,30}$
+inlinevar-rgx=[a-z_][a-z0-9_]*$
 
 # Good variable names which should always be accepted, separated by a comma
 good-names=i,j,k,ex,Run,_

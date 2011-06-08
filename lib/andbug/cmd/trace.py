@@ -12,6 +12,8 @@
 ## You should have received a copy of the GNU Lesser General Public License
 ## along with AndBug.  If not, see <http://www.gnu.org/licenses/>.
 
+'implementation of the "trace" command'
+
 import sys
 import andbug.command
 from getopt import getopt
@@ -32,10 +34,10 @@ def trace(ctxt, cpath):
 
     while True:
         try:
-            t, l = q.get()
+            t = q.get()[0]
             f = t.frames[0]
             print '[::]', t, f.loc
-            for k,v in f.values.items():
+            for k, v in f.values.items():
                 print '    ', k, '=', v
         finally:
             t.resume()

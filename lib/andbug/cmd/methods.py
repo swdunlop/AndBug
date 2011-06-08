@@ -12,6 +12,8 @@
 ## You should have received a copy of the GNU Lesser General Public License
 ## along with AndBug.  If not, see <http://www.gnu.org/licenses/>.
 
+'implementation of the "methods" command'
+
 import andbug.command, andbug.options
 
 @andbug.command.action('<class-path> [<method-query>]')

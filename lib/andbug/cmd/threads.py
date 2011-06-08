@@ -12,8 +12,8 @@
 ## You should have received a copy of the GNU Lesser General Public License
 ## along with AndBug.  If not, see <http://www.gnu.org/licenses/>.
 
-import sys
-from getopt import getopt
+'implementation of the "threads" command'
+
 import andbug.command
 
 @andbug.command.action('')

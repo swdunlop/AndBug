@@ -13,6 +13,8 @@
 ## You should have received a copy of the GNU Lesser General Public License
 ## along with AndBug.  If not, see <http://www.gnu.org/licenses/>.
 
+'this script executes command modules found in andbug.commands'
+
 import andbug, sys, os, os.path
 import andbug.cmd, andbug.command
 from Queue import Queue, Empty
@@ -21,9 +23,9 @@ import threading, traceback
 inv = os.path.basename(sys.argv[0]).lower()
 
 if inv == "andbug":
-        args = sys.argv[1:]
+    args = sys.argv[1:]
 else:
-        args = [inv] + sys.argv[1:]
+    args = [inv] + sys.argv[1:]
 
 if not args or (args == ['help']):
     andbug.command.load_commands()
@@ -42,7 +44,7 @@ else:
     andbug.command.load_commands()
 
     # this mess is to work around python's ctrl-c insanity
-    q = Queue();
+    q = Queue()
     
     def main():
         try:
