@@ -9,3 +9,6 @@ lib/jdwp/jdwp.c: lib/jdwp/jdwp.pyx
 
 clean:
 	rm -rf build */*/*.o */*/*.so */*/*.pyc
+
+lint:
+	for x in `find lib -name '*.py'`; do echo :: $$x; PYTHONPATH=lib pylint --rcfile=pylint.rc $$x; done
