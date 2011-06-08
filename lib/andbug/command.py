@@ -13,7 +13,7 @@
 ## along with AndBug.  If not, see <http://www.gnu.org/licenses/>.
 
 import os, os.path, sys, getopt, tempfile, inspect, re
-import andbug.proto, andbug.process, andbug.cmd
+import andbug.proto, andbug.vm, andbug.cmd
 from andbug.util import sh
 
 #TODO: make short_opts, long_opts, opt_table a dynamic parsing derivative.
@@ -30,7 +30,7 @@ RE_INT = re.compile('^[0-9]+$')
 
 class Context(object):
     'an andbug command context'
-    
+
     def __init__(self):
         self.conn = None
         self.sess = None
@@ -44,7 +44,7 @@ class Context(object):
 
     def connect(self):
         self.conn = andbug.proto.connect(self.forward())
-        self.sess = andbug.process.Session(self.conn)
+        self.sess = andbug.vm.Session(self.conn)
 
     def parse_opts(self, args, options=OPTIONS, proc=True):
         short_opts = ''.join(opt[0][0] + ':' for opt in options)
