@@ -12,6 +12,21 @@
 ## You should have received a copy of the GNU Lesser General Public License
 ## along with AndBug.  If not, see <http://www.gnu.org/licenses/>.
 
+'''
+The andbug.command module underpins the andbug command system by providing 
+context and a central registry to command modules in the andbug.cmd package.
+
+Commands for andbug are typically defined as ::
+
+    @andbug.action(
+        '<used-argument> [<extra-argument>]'
+        (('debug', 'sets the debug level'))
+    )
+    def sample(ctxt, used, extra=None):
+        ...
+
+'''
+
 import os, os.path, sys, getopt, tempfile, inspect, re
 import andbug.proto, andbug.vm, andbug.cmd
 from andbug.util import sh
@@ -24,18 +39,24 @@ OPTIONS = (
 )
 
 class OptionError(Exception):
+    'indicates an error parsing an option supplied to a command'
     pass
 
 RE_INT = re.compile('^[0-9]+$')
 
 class Context(object):
-    'an andbug command context'
+    '''
+    Commands in AndBug are associated with a command Context, which contains
+    options and environment information for the command.  This information
+    may be reused for multiple commands within the AndBug shell.
+    '''
 
     def __init__(self):
         self.conn = None
         self.sess = None
 
     def forward(self):
+        'constructs an adb forward for the context to access the pid via jdwp'
         temp = tempfile.mktemp()
         cmd = ['adb', '-s', self.dev] if self.dev else ['adb']
         cmd += ['forward', 'localfilesystem:' + temp,  'jdwp:' + self.pid]
@@ -43,23 +64,26 @@ class Context(object):
         return temp
 
     def connect(self):
+        'connects using .forward() to the process associated with this context'
         self.conn = andbug.proto.connect(self.forward())
         self.sess = andbug.vm.Session(self.conn)
 
-    def parse_opts(self, args, options=OPTIONS, proc=True):
+    def parseOpts(self, args, options=OPTIONS, proc=True):
+        'parse command options in OPTIONS format'
         short_opts = ''.join(opt[0][0] + ':' for opt in options)
         long_opts = list(opt[0] + '=' for opt in options)
         opt_table = {}
 
         for opt in options:
-                opt_table['-' + opt[0][0]] = opt[0]
-                opt_table['--' + opt[0]] = opt[0]
+            opt_table['-' + opt[0][0]] = opt[0]
+            opt_table['--' + opt[0]] = opt[0]
 
         opts, args = getopt.gnu_getopt(args, short_opts, long_opts)
 
         opts = list((opt_table[k], v) for k, v in opts)
         t = {}
-        for k, v in opts: t[k] = v
+        for k, v in opts: 
+            t[k] = v
         
         if proc:
             pid = t.get('pid')
@@ -75,11 +99,12 @@ class Context(object):
 
             dev = t.get('dev')
 
-            self.find_dev(dev)
-            self.find_pid(dev, pid, name)
+            self.findDev(dev)
+            self.findPid(dev, pid, name)
         return args, opts
 
-    def find_dev(self, dev=None):
+    def findDev(self, dev=None):
+        'determines the device for the command based on dev'
         if dev:
             if dev not in map( 
                 lambda x: x.split()[0], 
@@ -91,25 +116,27 @@ class Context(object):
         else:
             if len(sh(('adb', 'devices')).splitlines()) != 3:
                 raise OptionError(
-                    'you must specify a device serial unless there is only one online'
+                    'you must specify a device serial unless there is only'
+                    ' one online'
                 )
             self.dev = None
 
         self.dev = dev
     
-    def find_pid(self, dev=None, pid=None, name=None):
+    def findPid(self, dev=None, pid=None, name=None):
+        'determines the process id for the command based on dev, pid and/or name'
         ps = ('adb', 'shell', 'ps', '-s', dev) if dev else ('adb', 'shell', 'ps') 
 
         if pid:
             if pid not in map( 
                 lambda x: x.split()[1], 
-                sh(('adb', 'shell', 'ps')).splitlines()[1:]
+                sh(ps).splitlines()[1:]
             ):
                 raise OptionError('could not find process ' + pid)
         elif name:
             rows = filter( 
                 lambda x: x.split()[-1] == name, 
-                sh(('adb', 'shell', 'ps')).splitlines()[1:]
+                sh(ps).splitlines()[1:]
             )
 
             if not rows:
@@ -121,13 +148,14 @@ class Context(object):
         self.pid = pid
 
     def perform(self, cmd, args):
+        'performs the named command with the supplied arguments'
         act = ACTION_MAP.get(cmd)
 
         if not act:
             print 'andbug: command "%s" not supported.' % cmd
             return False
 
-        args, opts = self.parse_opts(args, act.opts, act.proc)
+        args, opts = self.parseOpts(args, act.opts, act.proc)
         argct = len(args) + 1 
 
         if argct < act.min_arity:
@@ -137,9 +165,10 @@ class Context(object):
             print 'andbug: too many arguments for command "%s."' % cmd
             return False
 
-        opts = filter(lambda opt: opt[0] in act.keys, opts)        
+        opts = filter(lambda opt: opt[0] in act.keys, opts)
         kwargs  = {}
-        for k, v in opts: kwargs[k] = v
+        for k, v in opts: 
+            kwargs[k] = v
 
         if act.proc: self.connect()
         act(self, *args, **kwargs)
@@ -153,6 +182,7 @@ def bind_action(name, fn):
     ACTION_MAP[name] = fn
 
 def action(usage, opts = (), proc = True):
+    'decorates a command implementation with usage and argument information'
     def bind(fn):
         fn.proc = proc
         fn.usage = usage
@@ -167,8 +197,9 @@ def action(usage, opts = (), proc = True):
     return bind
 
 CMD_DIR_PATH = os.path.abspath(os.path.join( os.path.dirname(__file__), "cmd" ))
+
 def load_commands():
-    import pkgutil, andbug.cmd
+    'loads commands from the andbug.cmd package'
     for name in os.listdir(CMD_DIR_PATH):
         if name.startswith( '__' ):
             continue
@@ -177,12 +208,15 @@ def load_commands():
             __import__( name )
 
 def run_command(args):
+    'runs the specified command with a new context'
     ctxt = Context()
-    ix = 0
     for item in args:
-            if item in ('-h', '--help', '-?', '-help'):
-                    args = ('help', args[0])
-                    print args
-                    break
-            ix += 1
+        if item in ('-h', '--help', '-?', '-help'):
+            args = ('help', args[0])
+            print args
+            break
     return ctxt.perform(args[0], args[1:])
+
+__all__ = (
+    'run_command', 'load_commands', 'action', 'Context', 'OptionError'
+)

@@ -14,11 +14,8 @@
 
 'implementation of the "trace" command'
 
-import sys
 import andbug.command
-from getopt import getopt
-from andbug.options import parse_mquery, format_mjni, parse_cpath
-from Queue import Queue, Empty as QueueEmpty
+from Queue import Queue
 
 @andbug.command.action('<class-path>')
 def trace(ctxt, cpath):
