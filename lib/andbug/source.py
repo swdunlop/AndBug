@@ -72,7 +72,10 @@ def load_source(cjni, first=0, last=-1):
     if not lines:
         return False
     first, last = normalize_range(len(lines), first, last)
-    return lines[first:last]
+    d = map(lambda x, y: (x, y), range(first, last), lines[first:last])
+    return d
+
+import itertools
 
 def dump_source(lines, head = None):
     ctxt = [None]
@@ -97,7 +100,7 @@ def dump_source(lines, head = None):
 
     if head:
         section(head)
-    for line in lines:
+    for row, line in lines:
         line = line.strip()
         if not line: continue
         lead = line[0]
@@ -107,7 +110,7 @@ def dump_source(lines, head = None):
             elif line.startswith(".end"):
                 exit()
             elif line == '...':
-                andbug.screed.line(line)
+                andbug.screed.line(line, row)
             else:
                 item(line[1:])
         elif line.startswith(":"):
@@ -119,5 +122,5 @@ def dump_source(lines, head = None):
         elif line.endswith('{/*'):
             pass # meh 
         else:
-            andbug.screed.line(line)
+            andbug.screed.line(line, row)
     exit()

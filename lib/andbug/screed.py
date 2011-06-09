@@ -111,8 +111,8 @@ class refer(area):
 def text(data):
     output().create_text(data)
 
-def line(data):
-    output().create_line(data)
+def line(data, row=None):
+    output().create_line(data, row)
 
 class surface(object):
     def __init__(self, output=None):
@@ -162,9 +162,12 @@ class surface(object):
     def exit_item(self, title):
         pass
 
-    def create_line(self, line):
-        self.wrap_line(self.current_indent + line)
-
+    def create_line(self, line, row = None):
+        if row is None:
+            self.wrap_line(self.current_indent + line)
+        else:
+            row = "%4i: " % row
+            self.wrap_line(self.current_indent + row + line, " " * len(row))
     def wrap_line(self, line, indent=None):
         if self.width is None:
             self.write(line)
