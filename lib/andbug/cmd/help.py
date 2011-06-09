@@ -59,6 +59,10 @@ def help_on(ctxt, cmd):
         print 'andbug: there is no command named "%s."' % cmd
         return
 
+    if not ctxt.shell:
+        print COPYRIGHT
+        print
+
     opts = "" if ctxt.shell else "[-d <dev>] -p <pid>"
     print "   ##", cmd, opts, act.usage
     print "     ", act.__doc__

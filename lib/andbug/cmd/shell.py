@@ -17,6 +17,8 @@ from __future__ import print_function
 import shlex
 import andbug.command
 
+BANNER = '## AndBug (C) 2011 Scott W. Dunlop <swdunlop@gmail.com>'
+
 def output(*data):
     print(*data)
 
@@ -26,12 +28,15 @@ def input():
 @andbug.command.action('')
 def shell(ctxt):
     'starts the andbug shell with the specified process'
-    try:
-        import readline
-    except:
-        readline = None
-    
-    ctxt.shell = True
+    if not ctxt.shell:
+        try:
+            import readline
+        except:
+            readline = None
+        ctxt.shell = True
+        print(BANNER)
+        print()
+
     while True:
         try:
             cmd = shlex.split(input())
