@@ -91,6 +91,7 @@ class surface(object):
         if output is None:
             output = sys.stdout
         self.output = output
+        self.tty = self.output.isatty()
         self.indent = []
         self.textwrap = textwrap.TextWrapper()
 
@@ -135,7 +136,10 @@ class surface(object):
 
     def wrap_line(self, line, indent=None):
         if self.width is None:
-            self.line.write(line)
+            self.write(line)
+            self.newline()
+            return
+
 
         if indent is not None:
             self.textwrap.subsequent_indent = indent
@@ -170,6 +174,7 @@ class scheme(object):
         self.c256[tag] = c256
 
     def load(self, tag, depth):
+        if not depth: return ''
         return (self.c256 if (depth == 256) else self.c16).get(tag, '\x1B[0m')
 
 redmedicine = scheme((
@@ -184,10 +189,11 @@ class ascii(surface):
         if width is None:
             width = 79
         if depth is None:
-            depth = 16
+            depth = 16 if self.tty else 0
         self.width = width
         self.depth = depth
-        self.pollcap()
+        if self.tty:
+            self.pollcap()
         self.next_indent = None
         self.context = []
         self.prev_tag = ''
@@ -258,6 +264,7 @@ class ascii(surface):
         #print 'EXIT ->', repr(self.prev_tag)
 
     def pollcap(self):
+        if not self.tty: return
         self.width = tput('cols', self.width)
         self.depth = tput('colors', self.depth)        
         self.textwrap.width = self.width
