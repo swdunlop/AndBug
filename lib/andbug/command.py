@@ -28,14 +28,15 @@ Commands for andbug are typically defined as ::
 '''
 
 import os, os.path, sys, getopt, tempfile, inspect, re
-import andbug.proto, andbug.vm, andbug.cmd
+import andbug.proto, andbug.vm, andbug.cmd, andbug.source
 from andbug.util import sh
 
 #TODO: make short_opts, long_opts, opt_table a dynamic parsing derivative.
 
 OPTIONS = (
     ('pid', 'the process to be debugged, by pid or name'),
-    ('dev', 'the device or emulator to be debugged (see adb)')
+    ('dev', 'the device or emulator to be debugged (see adb)'),
+    ('src', 'adds a directory where .java or .smali files could be found')
 )
 
 class OptionError(Exception):
@@ -87,7 +88,10 @@ class Context(object):
         opts = list((opt_table[k], v) for k, v in opts)
         t = {}
         for k, v in opts: 
-            t[k] = v
+            if k == 'src':
+                andbug.source.add_srcdir(v)
+            else:
+                t[k] = v
         
         if proc:
             pid = t.get('pid')

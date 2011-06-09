@@ -74,7 +74,7 @@ def load_source(cjni, first=0, last=-1):
     first, last = normalize_range(len(lines), first, last)
     return lines[first:last]
 
-def dump_lines(lines, head = None):
+def dump_source(lines, head = None):
     ctxt = [None]
     
     def enter_area(func, title):
