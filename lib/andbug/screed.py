@@ -59,32 +59,60 @@ def tput(attr, alt=None):
     o, _ = p.communicate()
     return int(o)
 
-class section(object):
+class area(object):
     def __init__(self, title):
         self.title = title
+        self.create()
+    def __enter__(self):
+        self.enter()
+    def __exit__(self, *_):
+        self.exit()
+        return False
+
+    def enter(self):
+        pass 
+    def exit(self):
+        pass
+    def create(self):
+        pass
+
+class section(area):
+    def create(self):
         output().create_section(self.title)
-
-    def __enter__(self):
+    def enter(self):
         output().enter_section(self.title)
-    
-    def __exit__(self, *_):
+    def exit(self):
         output().exit_section(self.title)
-        return False
 
-class item(object):
-    def __init__(self, title):
-        self.title = title
+class item(area):
+    def create(self):
         output().create_item(self.title)
-
-    def __enter__(self):
+    def enter(self):
         output().enter_item(self.title)
-    
-    def __exit__(self, *_):
+    def exit(self):
         output().exit_item(self.title)
-        return False
+
+class meta(area):
+    def create(self):
+        output().create_item(self.title)
+    def enter(self):
+        output().enter_item(self.title)
+    def exit(self):
+        output().exit_item(self.title)
+
+class refer(area):
+    def create(self):
+        output().create_refer(self.title)
+    def enter(self):
+        output().enter_refer(self.title)
+    def exit(self):
+        output().exit_refer(self.title)
 
 def text(data):
     output().create_text(data)
+
+def line(data):
+    output().create_line(data)
 
 class surface(object):
     def __init__(self, output=None):
@@ -134,13 +162,14 @@ class surface(object):
     def exit_item(self, title):
         pass
 
+    def create_line(self, line):
+        self.wrap_line(self.current_indent + line)
+
     def wrap_line(self, line, indent=None):
         if self.width is None:
             self.write(line)
             self.newline()
             return
-
-
         if indent is not None:
             self.textwrap.subsequent_indent = indent
             lines = self.textwrap.wrap(line)
@@ -180,7 +209,9 @@ class scheme(object):
 redmedicine = scheme((
     ('##', 9, 69),
     ('--', 15, 254),
-    ('$$',  8, 146)
+    ('$$',  8, 146),
+    ('::',  11, 228),
+    ('//',  8, 242),
 ))
 
 class ascii(surface):
@@ -236,6 +267,24 @@ class ascii(surface):
     def exit_item(self, title):
         self.exit_tagged_area()
 
+    def create_meta(self, title):
+        self.create_tagged_area( '//', title)
+
+    def enter_meta(self, title):
+        self.enter_tagged_area()
+    
+    def exit_meta(self, title):
+        self.exit_tagged_area()
+
+    def create_refer(self, title):
+        self.create_tagged_area( '::', title)
+
+    def enter_refer(self, title):
+        self.enter_tagged_area()
+    
+    def exit_refer(self, title):
+        self.exit_tagged_area()
+
     def create_text(self, text):
         self.transition('$$')
         self.write(self.palette.load('$$', self.depth))
@@ -268,7 +317,6 @@ class ascii(surface):
         self.width = tput('cols', self.width)
         self.depth = tput('colors', self.depth)        
         self.textwrap.width = self.width
-
 
 OUTPUT = None
 PALETTE = None
