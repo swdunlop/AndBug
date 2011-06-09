@@ -25,6 +25,7 @@ import andbug.proto
 import andbug.log
 import andbug.command
 import andbug.vm
+import andbug.screed
 
 ## andbug.proto -- the jdwp protocol as used and abstracted
 from andbug.proto import connect

@@ -34,6 +34,9 @@ andbug.command.load_commands()
 q = Queue()
 
 def main():
+    import atexit
+    atexit.register(sys.stdout.write, '\x1B[0m\n')
+
     try:
         q.put(andbug.command.run_command(args))
     except Exception as exc:

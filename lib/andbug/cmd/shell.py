@@ -15,12 +15,9 @@
 
 from __future__ import print_function
 import shlex
-import andbug.command
+import andbug.command, andbug.screed
 
-BANNER = '## AndBug (C) 2011 Scott W. Dunlop <swdunlop@gmail.com>'
-
-def output(*data):
-    print(*data)
+BANNER = 'AndBug (C) 2011 Scott W. Dunlop <swdunlop@gmail.com>'
 
 def input():
     return raw_input('>> ')
@@ -34,12 +31,13 @@ def shell(ctxt):
         except:
             readline = None
         ctxt.shell = True
-        print(BANNER)
-        print()
+        andbug.screed.section(BANNER)
 
     while True:
+        andbug.screed.pollcap()
         try:
             cmd = shlex.split(input())
         except EOFError:
             return
-        andbug.command.run_command(cmd, ctxt=ctxt)
+        if cmd:
+            andbug.command.run_command(cmd, ctxt=ctxt)

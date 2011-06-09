@@ -14,89 +14,93 @@
 
 'implementation of the "help" command'
 
-import andbug.command, andbug.options
+import andbug.command, andbug.options, andbug.screed
 
-COPYRIGHT = '   AndBug (C) 2011 Scott W. Dunlop <swdunlop@gmail.com>'
+BANNER = 'AndBug (C) 2011 Scott W. Dunlop <swdunlop@gmail.com>'
 
 SHELL_INTRO = '''
-   The AndBug shell is a simple interactive console shell that reduces typing
-   and overhead involved in setting up a debugging session.  Commands entered
-   at the prompt will be evaluated using the current device and process as a
-   context.  Where possible, AndBug uses readline; if your Python
-   install lacks readline, this shell will be more difficult to use due to
-   the poor console I/O functionality in vanilla Python.  (The "rlwrap" 
-   utility may help.)'''
+    The AndBug shell is a simple interactive console shell that reduces typing
+    and overhead involved in setting up a debugging session.  Commands entered
+    at the prompt will be evaluated using the current device and process as a
+    context.  Where possible, AndBug uses readline; if your Python
+    install lacks readline, this shell will be more difficult to use due to
+    the poor console I/O functionality in vanilla Python.  (The "rlwrap" 
+    utility may help.)'''
 
 CLI_INTRO = '''
-   AndBug is a reverse-engineering debugger for the Android Dalvik virtual
-   machine employing the Java Debug Wire Protocol (JDWP) to interact with
-   Android applications without the need for source code.  The majority of
-   AndBug's commands require the context of a connected Android device and
-   a specific Android process to target, which should be specified using the
-   -d and -p options.
+    AndBug is a reverse-engineering debugger for the Android Dalvik virtual
+    machine employing the Java Debug Wire Protocol (JDWP) to interact with
+    Android applications without the need for source code.  The majority of
+    AndBug's commands require the context of a connected Android device and
+    a specific Android process to target, which should be specified using the
+    -d and -p options.
 
-   The debugger offers two modes -- interactive and noninteractive, and a
-   comprehensive Python API for writing debugging scripts.  The interactive
-   mode is accessed using:
+    The debugger offers two modes -- interactive and noninteractive, and a
+    comprehensive Python API for writing debugging scripts.  The interactive
+    mode is accessed using:
 
-   -- andbug shell [-d <device>] -p <process>.
+    $ andbug shell [-d <device>] -p <process>.
 
-   The device specification, if omitted, defaults in an identical fashion to
-   the ADB debugging bridge command, which AndBug uses heavily.  The process
-   specification is either the PID of the process to debug, or the name of
-   the process, as found in "adb shell ps."'''
+    The device specification, if omitted, defaults in an identical fashion to
+    the ADB debugging bridge command, which AndBug uses heavily.  The process
+    specification is either the PID of the process to debug, or the name of
+    the process, as found in "adb shell ps."'''
 
 CAUTION = '''
-   AndBug is NOT intended as a piracy tool, or illegal purposes, but as a 
-   tool for researchers and developers to gain insight into the 
-   implementation of Android applications.  Use of AndBug is at your own risk,
-   like most open source tools, and no guarantee of fitness or safety is
-   made or implied.'''
+    AndBug is NOT intended for a piracy tool, or other illegal purposes, but 
+    as a tool for researchers and developers to gain insight into the 
+    implementation of Android applications.  Use of AndBug is at your own risk,
+    like most open source tools, and no guarantee of fitness or safety is
+    made or implied.'''
+
+SHELL_EXAMPLES = (
+    'classes',
+    'methods com.ioactive.decoy.DecoyActivity onInit'
+)
+
+CLI_EXAMPLES = (
+   'andbug classes -p com.ioactive.decoy',
+   'andbug methods -p com.ioactive.decoy com.ioactive.decoy.DecoyActivity onInit'
+)
 
 def help_on(ctxt, cmd):
     act = andbug.command.ACTION_MAP.get(cmd)
     if act is None:
-        print 'andbug: there is no command named "%s."' % cmd
+        print '!! there is no command named "%s."' % cmd
         return
 
-    if not ctxt.shell:
-        print COPYRIGHT
-        print
+    opts = "" if ctxt.shell else " [-d <dev>] -p <pid>"
+    usage = "%s%s %s" % (cmd, opts, act.usage)
 
-    opts = "" if ctxt.shell else "[-d <dev>] -p <pid>"
-    print "   ##", cmd, opts, act.usage
-    print "     ", act.__doc__
+    if ctxt.shell:
+        head = andbug.screed.section(usage)
+    else:
+        head = andbug.screed.section(BANNER)
+        head = andbug.screed.item(usage)
+    
+    with head:
+        andbug.screed.text(act.__doc__)
 
 def general_help(ctxt):
-    print COPYRIGHT
-    if ctxt.shell:
-        print SHELL_INTRO
-    else:
-        print CLI_INTRO
+    with andbug.screed.section(BANNER):
+        andbug.screed.body(SHELL_INTRO if ctxt.shell else CLI_INTRO)
+        andbug.screed.body(CAUTION)
     
-    print CAUTION
-    print
-
     if not ctxt.shell:
-        print "   ## Options"
-        for k, d in andbug.command.OPTIONS:
-            print "   -- -%s, --%s <opt>  \t%s" % (k[0], k, d)
-        print
-    
-    print "   ## Commands"
-    for row in andbug.command.ACTION_LIST:
-        print "   -- %s %s" % (row.__name__, row.usage)
-        print "     ", row.__doc__
-    print
+        with andbug.screed.section("Options:"):
+            for k, d in andbug.command.OPTIONS:
+                with andbug.screed.item( "-%s, --%s <opt>" % (k[0], k)):
+                    andbug.screed.text(d)
 
-    if ctxt.shell:
-        print "   ## Examples"
-        print "   -- classes"
-        print "   -- methods com.ioactive.decoy.DecoyActivity onInit"
-    else:
-        print "   ## Examples"
-        print "   -- andbug classes -p com.ioactive.decoy"
-        print "   -- andbug methods -p com.ioactive.decoy com.ioactive.decoy.DecoyActivity onInit"
+    
+    with andbug.screed.section("Commands:"):
+        for row in andbug.command.ACTION_LIST:
+            with andbug.screed.item("%s %s" % (row.__name__, row.usage)):
+                andbug.screed.text(row.__doc__.strip())
+
+    with andbug.screed.section("Examples:"):
+        for ex in (SHELL_EXAMPLES if ctxt.shell else CLI_EXAMPLES):
+          andbug.screed.item(ex)
 
 @andbug.command.action('[<command>]', proc=False)
 def help(ctxt, topic = None):
