@@ -34,10 +34,10 @@ def shell(ctxt):
         andbug.screed.section(BANNER)
 
     while True:
-        andbug.screed.pollcap()
         try:
             cmd = shlex.split(input())
         except EOFError:
             return
+        andbug.screed.pollcap()
         if cmd:
             andbug.command.run_command(cmd, ctxt=ctxt)
