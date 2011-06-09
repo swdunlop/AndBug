@@ -19,7 +19,7 @@ import andbug.command
 @andbug.command.action('')
 def classes(ctxt):
     'lists loaded classes'
-    for c in ctxt.proc.classes():
+    for c in ctxt.sess.classes():
         n = c.jni
         if n.startswith('L') and n.endswith(';'):
             print n[1:-1].replace('/', '.')

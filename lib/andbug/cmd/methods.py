@@ -20,5 +20,5 @@ import andbug.command, andbug.options
 def methods(ctxt, cpath, mquery=None):
     'lists the methods of a class'
     cpath, mname, mjni = andbug.options.parse_mquery(cpath, mquery)
-    for m in ctxt.proc.classes(cpath).methods(name=mname, jni=mjni):
+    for m in ctxt.sess.classes(cpath).methods(name=mname, jni=mjni):
         print m

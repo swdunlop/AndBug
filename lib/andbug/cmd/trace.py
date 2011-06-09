@@ -24,7 +24,7 @@ def trace(ctxt, cpath):
 
     cpath = parse_cpath(cpath)
     print '[::] setting hooks'
-    for c in ctxt.proc.classes(cpath):
+    for c in ctxt.sess.classes(cpath):
         c.hookEntries(q)
         print '[::] hooked', c
     print '[::] hooks set'

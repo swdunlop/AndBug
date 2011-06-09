@@ -19,12 +19,12 @@ import andbug.command
 @andbug.command.action('')
 def threads(ctxt):
     'lists threads in the process'
-    ctxt.proc.suspend()
+    ctxt.sess.suspend()
     try:
-        for t in ctxt.proc.threads:
+        for t in ctxt.sess.threads:
             f = t.frames[0]
             print str(t), f.loc, ('<native>' if f.native else '')
             for k, v in f.values.items():
                 print "    ", k, "=", v
     finally:
-        ctxt.proc.resume()
+        ctxt.sess.resume()
