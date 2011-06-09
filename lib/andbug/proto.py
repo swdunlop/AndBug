@@ -12,19 +12,26 @@
 ## You should have received a copy of the GNU Lesser General Public License
 ## along with AndBug.  If not, see <http://www.gnu.org/licenses/>.
 
+'''
+The andbug.proto module abstracts the JDWP wire protocol into a more 
+manageable request/response API using an input worker thread in the
+background and a number of mutexes to control contests for output.
+'''
+
 import socket
 from threading import Thread, Lock
 from andbug.jdwp import JdwpBuffer
-import andbug.log
 from Queue import Queue, Empty as EmptyQueue
 
 class EOF(Exception):
+    'signals that an EOF has been encountered'
     def __init__(self, inner = None):
         Exception.__init__(
             self, str(inner) if inner else "EOF"
         )
 
 class HandshakeError(Exception):
+    'signals that the JDWP handshake failed'
     def __init__(self):
         Exception.__init__(
             self, 'handshake error, received message did not match'
@@ -43,6 +50,7 @@ IDSZ_REQ = (
 )
 
 def connect(addr, portno = None, trace=False):
+    'connects to an AF_UNIX or AF_INET JDWP transport'
     if addr and portno:
         conn = socket.create_connection((addr, portno))
     elif isinstance(addr, int):
@@ -52,6 +60,7 @@ def connect(addr, portno = None, trace=False):
         conn.connect(addr)
 
     def read(amt):
+        'read wrapper internal to andbug.proto.connect'
         req = amt
         buf = ''
         while req:
@@ -64,6 +73,7 @@ def connect(addr, portno = None, trace=False):
         return buf 
     
     def write(data):
+        'write wrapper internal to andbug.proto.connect'
         try:
             if trace:
                 print ":: XMIT:", repr(data)
@@ -77,7 +87,7 @@ def connect(addr, portno = None, trace=False):
 
 class Connection(Thread):
     '''
-    The JDWP Connectionor is a thread which abstracts the asynchronous JDWP protocol
+    The JDWP Connection is a thread which abstracts the asynchronous JDWP protocol
     into a more synchronous one.  The thread will listen for packets using the
     supplied read function, and transmit them using the write function.  
 
@@ -98,13 +108,14 @@ class Connection(Thread):
         self._read = read
         self.write = write
         self.initialized = False
-        self.nextId = 3
+        self.next_id = 3
         self.bindqueue = Queue()
         self.qmap = {}
         self.rmap = {}
         self.xmitlock = Lock()
 
     def read(self, sz):
+        'read size bytes'
         if sz == 0: return ''
         pkt = self._read(sz)
         if not len(pkt): raise EOF()
@@ -113,14 +124,18 @@ class Connection(Thread):
     ###################################################### INITIALIZATION STEPS
     
     def writeIdSzReq(self):
+        'write an id size request'
         return self.write(IDSZ_REQ)
 
     def readIdSzRes(self):
-        head = self.readHeader();
+        'read an id size response'
+        head = self.readHeader()
         if head[0] != 20:
             raise ProtocolError('expected size of an idsize response')
         if head[2] != 0x80:
-            raise ProtocolError('expected first server message to be a response')
+            raise ProtocolError(
+                'expected first server message to be a response'
+            )
         if head[1] != 1:
             raise ProtocolError('expected first server message to be 1')
 
@@ -131,11 +146,13 @@ class Connection(Thread):
         return None
 
     def readHandshake(self):
+        'read the jdwp handshake'
         data = self.read(len(HANDSHAKE_MSG))
         if data != HANDSHAKE_MSG:
             raise HandshakeError()
         
     def writeHandshake(self):
+        'write the jdwp handshake'
         return self.write(HANDSHAKE_MSG)
 
     ############################################### READING / PROCESSING PACKETS
@@ -166,13 +183,14 @@ class Connection(Thread):
             self.processRequest(ident, code, data)
 
     def processBind(self, qr, ident, chan):
+        'internal to i/o thread; performs a query or request bind'
         if qr == 'q':
             self.qmap[ident] = chan
         elif qr == 'r':
             self.rmap[ident] = chan
 
     def processRequest(self, ident, code, data):
-        'used internally by the processor; must have recv control'
+        'internal to the i/o thread w/ recv ctrl; processes incoming request'
         fn = self.rmap.get(code)
         if not fn: return #TODO
         buf = JdwpBuffer()
@@ -181,7 +199,7 @@ class Connection(Thread):
         fn(ident, buf)
         
     def processResponse(self, ident, code, data):
-        'used internally by the processor; must have recv control'        
+        'internal to the i/o thread w/ recv ctrl; processes incoming response'
         chan = self.qmap.pop(ident, None)
         if not chan: return
         buf = JdwpBuffer()
@@ -191,7 +209,7 @@ class Connection(Thread):
 
     def hook(self, code, func):
         '''
-        func will be invoked when code requests are received in the process loop;
+        func will be invoked when code requests are received in the i/o thread;
         you cannot safely issue requests here -- therefore, you should generally
         pass the call to a queue.
         '''
@@ -203,8 +221,8 @@ class Connection(Thread):
     
     def acquireIdent(self):
         'used internally by the processor; must have xmit control'
-        ident = self.nextId
-        self.nextId += 2
+        ident = self.next_id
+        self.next_id += 2
         return ident
 
     def writeContent(self, ident, flags, code, body):
@@ -254,6 +272,7 @@ class Connection(Thread):
         return None
 
     def run(self):
+        'runs forever; overrides the default Thread.run()'
         try:
             while True:
                 self.process()
