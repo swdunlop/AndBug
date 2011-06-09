@@ -27,40 +27,27 @@ if inv == "andbug":
 else:
     args = [inv] + sys.argv[1:]
 
-if not args or (args == ['help']):
-    andbug.command.load_commands()
-    print ":: Standard Options ::"
-    for k, d in andbug.command.OPTIONS:
-        print "\t-%s, --%s <opt>  \t%s" % (k[0], k, d)
-    print
-    print ":: Commands ::"
-    for row in andbug.command.ACTION_LIST:
-        print "\t%s\t\t\t%s" % (row.__name__, row.__doc__)
-    print
-    print ":: Examples ::"
-    print "\tandbug classes -p com.ioactive.decoy"
-    print "\tandbug methods -p com.ioactive.decoy.DecoyActivity onInit"
-else:
-    andbug.command.load_commands()
+if not args: args = ['help']
+andbug.command.load_commands()
 
-    # this mess is to work around python's ctrl-c insanity
-    q = Queue()
-    
-    def main():
-        try:
-            q.put(andbug.command.run_command(args))
-        except Exception as exc:
-            traceback.print_exc()
-            q.put(-1)
-    
-    threading.Thread(target=main).start()
+# this mess is to work around python's ctrl-c insanity
+q = Queue()
+
+def main():
     try:
-        while True:
-            try:
-                ret = q.get(True, .01)
-                if ret is not None: 
-                    sys.exit(ret)
-            except Empty:
-                pass # sigh
-    except KeyboardInterrupt:
-        sys.exit(1)
+        q.put(andbug.command.run_command(args))
+    except Exception as exc:
+        traceback.print_exc()
+        q.put(-1)
+
+threading.Thread(target=main).start()
+try:
+    while True:
+        try:
+            ret = q.get(True, .01)
+            if ret is not None: 
+                sys.exit(ret)
+        except Empty:
+            pass # sigh
+except KeyboardInterrupt:
+    sys.exit(1)

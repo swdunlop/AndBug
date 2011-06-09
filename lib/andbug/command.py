@@ -54,6 +54,9 @@ class Context(object):
     def __init__(self):
         self.conn = None
         self.sess = None
+        self.pid = None
+        self.dev = None
+        self.shell = False
 
     def forward(self):
         'constructs an adb forward for the context to access the pid via jdwp'
@@ -65,6 +68,7 @@ class Context(object):
 
     def connect(self):
         'connects using .forward() to the process associated with this context'
+        if self.sess is not None: return
         self.conn = andbug.proto.connect(self.forward())
         self.sess = andbug.vm.Session(self.conn)
 
@@ -105,6 +109,7 @@ class Context(object):
 
     def findDev(self, dev=None):
         'determines the device for the command based on dev'
+        if self.dev is not None: return
         if dev:
             if dev not in map( 
                 lambda x: x.split()[0], 
@@ -125,8 +130,8 @@ class Context(object):
     
     def findPid(self, dev=None, pid=None, name=None):
         'determines the process id for the command based on dev, pid and/or name'
+        if self.pid is not None: return
         ps = ('adb', 'shell', 'ps', '-s', dev) if dev else ('adb', 'shell', 'ps') 
-
         if pid:
             if pid not in map( 
                 lambda x: x.split()[1], 
@@ -207,14 +212,17 @@ def load_commands():
             name = 'andbug.cmd.' + name[:-3]
             __import__( name )
 
-def run_command(args):
+def run_command(args, ctxt = None):
     'runs the specified command with a new context'
-    ctxt = Context()
+    if ctxt is None:
+        ctxt = Context()
+            
     for item in args:
         if item in ('-h', '--help', '-?', '-help'):
             args = ('help', args[0])
             print args
             break
+    
     return ctxt.perform(args[0], args[1:])
 
 __all__ = (
