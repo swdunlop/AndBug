@@ -14,12 +14,13 @@
 
 'implementation of the "classes" command'
 
-import andbug.command
+import andbug.command, andbug.screed
 
 @andbug.command.action('')
 def classes(ctxt):
     'lists loaded classes'
-    for c in ctxt.sess.classes():
-        n = c.jni
-        if n.startswith('L') and n.endswith(';'):
-            print n[1:-1].replace('/', '.')
+    with andbug.screed.section('Loaded Classes'):
+	    for c in ctxt.sess.classes():
+	        n = c.jni
+	        if n.startswith('L') and n.endswith(';'):
+	            andbug.screed.item(n[1:-1].replace('/', '.'))
