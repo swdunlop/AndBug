@@ -68,6 +68,12 @@ def help_on(ctxt, cmd):
     if act is None:
         print '!! there is no command named "%s."' % cmd
         return
+    if not ctxt.can_perform(act):
+        if ctxt.shell:
+            print '!! %s is not available in the shell.' % cmd
+        else:
+            print '!! %s is only available in the shell.' % cmd
+        return
 
     opts = "" if ctxt.shell else " [-d <dev>] -p <pid>"
     usage = "%s%s %s" % (cmd, opts, act.usage)
@@ -95,8 +101,9 @@ def general_help(ctxt):
     
     with andbug.screed.section("Commands:"):
         for row in andbug.command.ACTION_LIST:
-            with andbug.screed.item("%s %s" % (row.__name__, row.usage)):
-                andbug.screed.text(row.__doc__.strip())
+            if ctxt.can_perform(row):
+                with andbug.screed.item("%s %s" % (row.__name__, row.usage)):
+                    andbug.screed.text(row.__doc__.strip())
 
     with andbug.screed.section("Examples:"):
         for ex in (SHELL_EXAMPLES if ctxt.shell else CLI_EXAMPLES):
@@ -107,4 +114,3 @@ def help(ctxt, topic = None):
     'information about how to use andbug'
 
     return help_on(ctxt, topic) if topic else general_help(ctxt)
-

@@ -156,12 +156,25 @@ class Context(object):
 
         self.pid = pid
 
+    def can_perform(self, act):
+        'uses the act.shell property to determine if it makes sense'
+        if self.shell:
+            return act.shell != False
+        return act.shell != True
+
     def perform(self, cmd, args):
         'performs the named command with the supplied arguments'
         act = ACTION_MAP.get(cmd)
 
         if not act:
-            print 'andbug: command "%s" not supported.' % cmd
+            print '!! command not supported: "%s."' % cmd
+            return False
+
+        if not self.can_perform(act):
+            if ctxt.shell:
+                print '!! %s is not available in the shell.' % cmd
+            else:
+                print '!! %s is only available in the shell.' % cmd
             return False
 
         args, opts = self.parseOpts(args, act.opts, act.proc)
@@ -190,10 +203,11 @@ def bind_action(name, fn):
     ACTION_LIST.append(fn)
     ACTION_MAP[name] = fn
 
-def action(usage, opts = (), proc = True):
+def action(usage, opts = (), proc = True, shell = None):
     'decorates a command implementation with usage and argument information'
     def bind(fn):
         fn.proc = proc
+        fn.shell = shell
         fn.usage = usage
         fn.opts = OPTIONS[:] + opts
         fn.keys = list(opt[0] for opt in opts)
