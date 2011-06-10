@@ -29,6 +29,7 @@ Commands for andbug are typically defined as ::
 
 import os, os.path, sys, getopt, tempfile, inspect, re
 import andbug.proto, andbug.vm, andbug.cmd, andbug.source
+import traceback
 from andbug.util import sh
 
 #TODO: make short_opts, long_opts, opt_table a dynamic parsing derivative.
@@ -193,9 +194,23 @@ class Context(object):
             kwargs[k] = v
 
         if act.proc: self.connect()
-        act(self, *args, **kwargs)
+        try:
+            act(self, *args, **kwargs)
+        except Exception as exc:
+            dump_exc(exc)
+            return False
+
         return True
-        
+
+def dump_exc(exc):       
+    tp, val, tb = sys.exc_info()
+    with andbug.screed.section("%s: %s" % (tp.__name__, val)):
+        for step in traceback.format_tb(tb):
+            step = step.splitlines()
+            with andbug.screed.item(step[0].strip()):
+                for line in step[1:]:
+                    andbug.screed.line(line.strip())
+
 ACTION_LIST = []
 ACTION_MAP = {}
 
