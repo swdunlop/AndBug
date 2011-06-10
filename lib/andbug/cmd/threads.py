@@ -14,17 +14,22 @@
 
 'implementation of the "threads" command'
 
-import andbug.command
+import andbug.command, andbug.screed
 
 @andbug.command.action('')
 def threads(ctxt):
     'lists threads in the process'
     ctxt.sess.suspend()
+
     try:
         for t in ctxt.sess.threads:
-            f = t.frames[0]
-            print str(t), f.loc, ('<native>' if f.native else '')
-            for k, v in f.values.items():
-                print "    ", k, "=", v
+            with andbug.screed.section(str(t)):
+                for f in t.frames:
+                    name = str(f.loc)
+                    if f.native:
+                        name += ' <native>'
+                    with andbug.screed.item(name):
+                        for k, v in f.values.items():
+                            andbug.screed.item( "%s=%s" %(k, v))
     finally:
         ctxt.sess.resume()

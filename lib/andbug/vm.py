@@ -23,50 +23,9 @@ class RequestError(Exception):
         Exception.__init__(self, 'request failed, code %s' % code)
         self.code = code
 
-class Context(object):
-    'an andbug vm context'
-    
-    def __init__(self, sess):
-        assert isinstance(sess, Session)
-        self.sess = sess
-        self.pool = andbug.data.pool()
-    @property
-    def conn(self):
-        return self.sess.conn
-    @property
-    def spool(self):
-        return self.sess.spool
-    @property
-    def cpool(self):
-        return self.pool
-
-    @property
-    def threads(self):
-        pool = self.pool
-        code, buf = self.conn.request(0x0104, '')
-        if code != 0:
-            raise RequestError(code)
-        ct = buf.unpackInt()
-
-        def load_thread():
-            tid = buf.unpackObjectId()
-            return pool(Thread, self, tid)
-        return andbug.data.view(load_thread() for x in range(0,ct))
-
 class Element(object):
     def __repr__(self):
         return '<%s>' % self
-
-class ContextElement(Element):
-    def __init__(self, ctxt):
-        assert isinstance(ctxt, Context)
-        self.ctxt = ctxt
-    @property
-    def sess(self):
-        return self.ctxt.sess
-    @property
-    def conn(self):
-        return self.ctxt.conn
 
 class SessionElement(Element):
     def __init__(self, sess):
@@ -76,9 +35,9 @@ class SessionElement(Element):
     def conn(self):
         return self.sess.conn
 
-class Frame(ContextElement):
-    def __init__(self, ctxt, fid):
-        ContextElement.__init__(self, ctxt)
+class Frame(SessionElement):
+    def __init__(self, sess, fid):
+        SessionElement.__init__(self, sess)
         self.fid = fid
         self.loc = None
         self.tid = None
@@ -86,8 +45,8 @@ class Frame(ContextElement):
         return 'frame %s, at %s' % (self.fid, self.loc)   
 
     @classmethod 
-    def unpackFrom(impl, ctxt, buf):
-        return ctxt.pool(impl, ctxt, buf.unpackFrameId())
+    def unpackFrom(impl, sess, buf):
+        return sess.pool(impl, sess, buf.unpackFrameId())
     
     def packTo(self, buf):
         buf.packFrameId(self.fid)
@@ -101,7 +60,7 @@ class Frame(ContextElement):
         vals = {}
         if self.native: return vals
         
-        ctxt = self.ctxt
+        sess = self.sess
         conn = self.conn
         buf = conn.buffer()
         buf.packObjectId(self.tid)
@@ -120,13 +79,13 @@ class Frame(ContextElement):
 
         for x in range(0, ct):
             s = slots[x]
-            vals[s.name] = unpack_value(ctxt, buf)
+            vals[s.name] = unpack_value(sess, buf)
 
         return vals
                                 
-class Thread(ContextElement):
-    def __init__(self, ctxt, tid):
-        ContextElement.__init__(self, ctxt)
+class Thread(SessionElement):
+    def __init__(self, sess, tid):
+        SessionElement.__init__(self, sess)
         self.tid = tid
     
     def __repr__(self):
@@ -155,14 +114,13 @@ class Thread(ContextElement):
         buf.packObjectId(self.tid)
 
     @classmethod
-    def unpackFrom(impl, ctxt, buf):
+    def unpackFrom(impl, sess, buf):
         tid = buf.unpackObjectId()
-        return ctxt.pool(impl, ctxt, tid)
+        return sess.pool(impl, sess, tid)
 
     @property
     def frames(self):
         tid = self.tid
-        ctxt = self.ctxt
         sess = self.sess
         conn = self.conn
         buf = conn.buffer()
@@ -173,7 +131,7 @@ class Thread(ContextElement):
         ct = buf.unpackInt()
 
         def load_frame():
-            f = Frame.unpackFrom(ctxt, buf)
+            f = Frame.unpackFrom(sess, buf)
             f.loc = Location.unpackFrom(sess, buf)
             f.tid = tid
             return f
@@ -221,7 +179,7 @@ class Location(SessionElement):
     @classmethod
     def unpackFrom(impl, sess, buf):
         tag, cid, mid, loc = buf.unpack('1tm8')
-        return sess.spool(impl, sess, cid, mid, loc)
+        return sess.pool(impl, sess, cid, mid, loc)
 
     def hook(self, queue = None):
         conn = self.conn
@@ -500,7 +458,7 @@ def register_unpack_impl(ek, fn):
     unpack_impl[ek] = fn
 
 #TODO: CONTEXT/SESSION
-def unpack_events(ctxt, buf):
+def unpack_events(sess, buf):
     sp, ct = buf.unpack('1i')
     for i in range(0, ct):
         ek = buf.unpackU8()
@@ -508,13 +466,13 @@ def unpack_events(ctxt, buf):
         if im is None:
             raise RequestError(ek)
         else:
-            yield im(ctxt, buf)
+            yield im(sess, buf)
 
 #TODO: CONTEXT/SESSION
-def unpack_method_entry(ctxt, buf):
+def unpack_method_entry(sess, buf):
     rid = buf.unpackInt()
-    t = Thread.unpackFrom(ctxt, buf)
-    loc = Location.unpackFrom(ctxt, buf)
+    t = Thread.unpackFrom(sess, buf)
+    loc = Location.unpackFrom(sess, buf)
 
     #TODO: Do we even care about loc?
     return rid, t, loc
@@ -603,17 +561,22 @@ class Session(object):
         conn = self.conn
         buf = conn.buffer()
         buf.pack('i', code)
-        code, buf = conn.request(0x0108, '')
+        code, buf = conn.request(0x010A, '')
         if code != 0:
             raise RequestError(code)
 
     @property
     def threads(self):
-        return Context(self).threads
+        pool = self.pool
+        code, buf = self.conn.request(0x0104, '')
+        if code != 0:
+            raise RequestError(code)
+        ct = buf.unpackInt()
 
-    @property
-    def spool(self):
-        return self.pool
+        def load_thread():
+            tid = buf.unpackObjectId()
+            return pool(Thread, self, tid)
+        return andbug.data.view(load_thread() for x in range(0,ct))
 
 class RefType(SessionElement):
     def __init__(self, sess, tag, tid):
@@ -646,6 +609,7 @@ class RefType(SessionElement):
 
 class Object(SessionElement):
     def __init__(self, sess, oid):
+        if oid == 0: raise VoidError()
         SessionElement.__init__(self, sess)
         self.oid = oid
 
@@ -654,7 +618,11 @@ class Object(SessionElement):
     
     @classmethod
     def unpackFrom(impl, sess, buf):
-        return sess.pool(impl, sess, buf.unpackObjectId(),)
+        oid = buf.unpackObjectId()
+        # oid = 0 indicates a GC omgfuckup in Dalvik
+        # which is NOT as uncommon as we would like..
+        if not oid: return None 
+        return sess.pool(impl, sess, oid)
 
     def packTo(self, buf):
         buf.packObjectId(self.oid)
@@ -714,7 +682,6 @@ register_unpack_value('L', Object.unpackFrom)
 register_unpack_value('tglc', Object.unpackFrom) #TODO: IMPL
 register_unpack_value('s', String.unpackFrom)
 
-#TODO: SESSION/CONTEXT
 def unpack_value(sess, buf, tag = None):
     if tag is None: tag = buf.unpackU8()
     fn = unpack_value_impl[tag]
