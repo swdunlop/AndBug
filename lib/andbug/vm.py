@@ -27,8 +27,9 @@ class Context(object):
     'an andbug vm context'
     
     def __init__(self, sess):
+        assert isinstance(sess, Session)
         self.sess = sess
-        self.pool = andbug.data.Pool()
+        self.pool = andbug.data.pool()
     @property
     def conn(self):
         return self.sess.conn
@@ -39,13 +40,18 @@ class Context(object):
     def cpool(self):
         return self.pool
 
-class Session(object):
-    def __init__(self, conn):
-        self.conn = conn
-        self.pool = andbug.data.Pool()
     @property
-    def spool(self):
-        return self.sess.spool
+    def threads(self):
+        pool = self.pool
+        code, buf = self.conn.request(0x0104, '')
+        if code != 0:
+            raise RequestError(code)
+        ct = buf.unpackInt()
+
+        def load_thread():
+            tid = buf.unpackObjectId()
+            return pool(Thread, self, tid)
+        return andbug.data.view(load_thread() for x in range(0,ct))
 
 class Element(object):
     def __repr__(self):
@@ -53,6 +59,7 @@ class Element(object):
 
 class ContextElement(Element):
     def __init__(self, ctxt):
+        assert isinstance(ctxt, Context)
         self.ctxt = ctxt
     @property
     def sess(self):
@@ -63,6 +70,7 @@ class ContextElement(Element):
 
 class SessionElement(Element):
     def __init__(self, sess):
+        assert isinstance(sess, Session)
         self.sess = sess
     @property
     def conn(self):
@@ -70,7 +78,7 @@ class SessionElement(Element):
 
 class Frame(ContextElement):
     def __init__(self, ctxt, fid):
-        ContextElement.__init__(ctxt)
+        ContextElement.__init__(self, ctxt)
         self.fid = fid
         self.loc = None
         self.tid = None
@@ -116,9 +124,9 @@ class Frame(ContextElement):
 
         return vals
                                 
-class Thread(SessionElement):
-    def __init__(self, sess, tid):
-        SessionElement.__init__(self, sess)
+class Thread(ContextElement):
+    def __init__(self, ctxt, tid):
+        ContextElement.__init__(self, ctxt)
         self.tid = tid
     
     def __repr__(self):
@@ -147,13 +155,14 @@ class Thread(SessionElement):
         buf.packObjectId(self.tid)
 
     @classmethod
-    def unpackFrom(impl, sess, buf):
+    def unpackFrom(impl, ctxt, buf):
         tid = buf.unpackObjectId()
-        return sess.pool(impl, sess, tid)
+        return ctxt.pool(impl, ctxt, tid)
 
     @property
     def frames(self):
         tid = self.tid
+        ctxt = self.ctxt
         sess = self.sess
         conn = self.conn
         buf = conn.buffer()
@@ -164,7 +173,7 @@ class Thread(SessionElement):
         ct = buf.unpackInt()
 
         def load_frame():
-            f = Frame.unpackFrom(sess, buf)
+            f = Frame.unpackFrom(ctxt, buf)
             f.loc = Location.unpackFrom(sess, buf)
             f.tid = tid
             return f
@@ -336,7 +345,6 @@ class Method(SessionElement):
 
     def load_method(self):
         self.klass.load_methods()
-        assert self.name != None
 
     name = defer(load_method, 'name')
     jni = defer(load_method, 'jni')
@@ -581,19 +589,6 @@ class Session(object):
             seq = self.classList
         return andbug.data.view(seq)
     
-    @property
-    def threads(self):
-        pool = self.pool
-        code, buf = self.conn.request(0x0104, '')
-        if code != 0:
-            raise RequestError(code)
-        ct = buf.unpackInt()
-
-        def load_thread():
-            tid = buf.unpackObjectId()
-            return pool(Thread, self, tid)
-        return andbug.data.view(load_thread() for x in range(0,ct))
-
     def suspend(self):
         code, buf = self.conn.request(0x0108, '')
         if code != 0:
@@ -611,6 +606,14 @@ class Session(object):
         code, buf = conn.request(0x0108, '')
         if code != 0:
             raise RequestError(code)
+
+    @property
+    def threads(self):
+        return Context(self).threads
+
+    @property
+    def spool(self):
+        return self.pool
 
 class RefType(SessionElement):
     def __init__(self, sess, tag, tid):
