@@ -14,7 +14,7 @@
 
 'implementation of the "trace" command'
 
-import andbug.command
+import andbug.command, andbug.screed, andbug.options
 from Queue import Queue
 
 @andbug.command.action('<class-path>')
@@ -22,19 +22,22 @@ def trace(ctxt, cpath):
     'reports calls to dalvik methods associated with a class'
     q = Queue()    
 
-    cpath = parse_cpath(cpath)
-    print '[::] setting hooks'
-    for c in ctxt.sess.classes(cpath):
-        c.hookEntries(q)
-        print '[::] hooked', c
-    print '[::] hooks set'
+    cpath = andbug.options.parse_cpath(cpath)
+    with andbug.screed.section('Setting Hooks'):
+        for c in ctxt.sess.classes(cpath):
+            c.hookEntries(q)
+            andbug.screed.item('Hooked %s' % c)
 
     while True:
         try:
             t = q.get()[0]
-            f = t.frames[0]
-            print '[::]', t, f.loc
-            for k, v in f.values.items():
-                print '    ', k, '=', v
+            with andbug.screed.section(str(t)):
+                for f in t.frames:
+                    name = str(f.loc)
+                    if f.native:
+                        name += ' <native>'
+                    with andbug.screed.item(name):
+                        for k, v in f.values.items():
+                            andbug.screed.item( "%s=%s" %(k, v))
         finally:
             t.resume()
