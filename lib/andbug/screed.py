@@ -192,10 +192,10 @@ class scheme(object):
             self.bind(*bind)
 
     def bind(self, tag, c16, c256 = None):
-        if c16 > 8:
-            c16 = '\x1B[0;3' + str(c16 - 8) + 'm'
+        if c16 > 7:
+            c16 = '\x1B[1;3' + str(c16 - 8) + 'm'
         else:
-            c16 = '\x1B[01;' + str(c16 - 8) + 'm'
+            c16 = '\x1B[0;3' + str(c16) + 'm'
 
         if c256 is not None:
             c256 = '\x1B[38;05;' + str(c256) + 'm'
@@ -210,11 +210,11 @@ class scheme(object):
         return (self.c256 if (depth == 256) else self.c16).get(tag, '\x1B[0m')
 
 redmedicine = scheme((
-    ('##', 9, 69),
+    ('##',  9,  69),
     ('--', 15, 254),
-    ('$$',  8, 146),
-    ('::',  11, 228),
-    ('//',  8, 242),
+    ('$$',  7, 146),
+    ('::', 11, 228),
+    ('//',  7, 242),
 ))
 
 class ascii(surface):
