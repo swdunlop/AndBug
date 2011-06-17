@@ -40,11 +40,28 @@ OPTIONS = (
     ('src', 'adds a directory where .java or .smali files could be found')
 )
 
-class OptionError(Exception):
+class UserError(Exception):
+    'indicates an error in how AndBug was used'
+    pass
+
+class OptionError(UserError):
     'indicates an error parsing an option supplied to a command'
     pass
 
+class ConfigError(UserError):
+    'indicates an error in the configuration of AndBug'
+    pass
+
 RE_INT = re.compile('^[0-9]+$')
+
+def seq(*args):
+    return args
+
+def adb(*args):
+    try:
+        return sh(seq("adb", *args))
+    except OSError as err:
+        raise ConfigError('could not find "adb" from the Android SDK in your PATH')
 
 class Context(object):
     '''
@@ -63,9 +80,9 @@ class Context(object):
     def forward(self):
         'constructs an adb forward for the context to access the pid via jdwp'
         temp = tempfile.mktemp()
-        cmd = ['adb', '-s', self.dev] if self.dev else ['adb']
-        cmd += ['forward', 'localfilesystem:' + temp,  'jdwp:' + self.pid]
-        sh(cmd)
+        cmd = ('-s', self.dev) if self.dev else ()
+        cmd += ('forward', 'localfilesystem:' + temp,  'jdwp:' + self.pid)
+        adb(*cmd)
         return temp
 
     def connect(self):
@@ -118,13 +135,13 @@ class Context(object):
         if dev:
             if dev not in map( 
                 lambda x: x.split()[0], 
-                sh(('adb', 'devices')).splitlines()[1:-1]
+                adb('devices').splitlines()[1:-1]
             ):
                 raise OptionError('device serial number not online')
             
             self.dev = dev            
         else:
-            if len(sh(('adb', 'devices')).splitlines()) != 3:
+            if len(adb('devices').splitlines()) != 3:
                 raise OptionError(
                     'you must specify a device serial unless there is only'
                     ' one online'
@@ -136,17 +153,17 @@ class Context(object):
     def findPid(self, dev=None, pid=None, name=None):
         'determines the process id for the command based on dev, pid and/or name'
         if self.pid is not None: return
-        ps = ('adb', 'shell', 'ps', '-s', dev) if dev else ('adb', 'shell', 'ps') 
+        ps = ('shell', 'ps', '-s', dev) if dev else ('shell', 'ps') 
         if pid:
             if pid not in map( 
                 lambda x: x.split()[1], 
-                sh(ps).splitlines()[1:]
+                adb(*ps).splitlines()[1:]
             ):
                 raise OptionError('could not find process ' + pid)
         elif name:
             rows = filter( 
                 lambda x: x.split()[-1] == name, 
-                sh(ps).splitlines()[1:]
+                adb(*ps).splitlines()[1:]
             )
 
             if not rows:

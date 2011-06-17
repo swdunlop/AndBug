@@ -19,6 +19,7 @@ AndBug is very much a program in flux, as I seperate one-off scripts I have writ
 
 2. Ensure the Android Debugging Bridge is in your $PATH and usable. ::
    
+   which adb
    adb devices
 
 3. Ensure you have a good Python and GNU toolchain for your platform.  You will need GCC, and Make.  You may also want Pyrex, if you want to make changes at the primitive layer.

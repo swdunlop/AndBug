@@ -39,6 +39,9 @@ def main():
 
     try:
         q.put(andbug.command.run_command(args))
+    except andbug.command.UserError as err:
+        print '!! %s' % err
+        q.put(-1)
     except Exception as exc:
         traceback.print_exc()
         q.put(-1)
