@@ -17,6 +17,11 @@ from andbug.data import defer
 from threading import Lock
 from Queue import Queue
 
+## Implementation Questions:
+## -- unpackFrom methods are used to unpack references to an element from
+##    a JDWP buffer.  This does not mean unpacking the actual definition of
+##    the element, which tends to be one-shot.
+
 class RequestError(Exception):
     'raised when a request for more information from the process fails'
     def __init__(self, code):
@@ -200,12 +205,10 @@ class Location(SessionElement):
 
     @property
     def method(self):
-        #TODO: move to Method.unpackFrom(...)
         return self.sess.pool(Method, self.sess, self.cid, self.mid)
 
     @property
     def klass(self):
-        #TODO: move to Class.unpackFrom(...)
         return self.sess.pool(Class, self.sess, self.cid)
 
     @property
@@ -234,7 +237,6 @@ class Slot(SessionElement):
             return 'slot at index %i' % (self.index)
 
     def load_slot(self):
-        #TODO: should be Class.unpackFrom
         self.sess.pool(Class, self.sess, cid).load_slots()
 
     firstLoc = defer(load_slot, 'firstLoc')
@@ -255,7 +257,6 @@ class Method(SessionElement):
 
     @property
     def klass(self):
-        #TODO: should be Class.unpackFrom
         return self.sess.pool(Class, self.sess, self.cid)
 
     def __str__(self):
@@ -324,7 +325,6 @@ class Method(SessionElement):
          
         def load_slot():
             codeIndex, name, jni, gen, codeLen, index  = buf.unpack('l$$$ii')
-            #TODO: should be Slot.unpackFrom
             slot = pool(Slot, sess, cid, mid, index)
             slot.firstLoc = codeIndex
             slot.locLength = codeLen
@@ -338,7 +338,6 @@ class Method(SessionElement):
 
     slots = defer(load_slot_table, 'slots')
                 
-#TODO: SESSION
 class Class(SessionElement): 
     def __init__(self, sess, cid):
         SessionElement.__init__(self, sess)
@@ -457,7 +456,6 @@ unpack_impl = [None,] * 256
 def register_unpack_impl(ek, fn):
     unpack_impl[ek] = fn
 
-#TODO: CONTEXT/SESSION
 def unpack_events(sess, buf):
     sp, ct = buf.unpack('1i')
     for i in range(0, ct):
@@ -468,13 +466,10 @@ def unpack_events(sess, buf):
         else:
             yield im(sess, buf)
 
-#TODO: CONTEXT/SESSION
 def unpack_method_entry(sess, buf):
     rid = buf.unpackInt()
     t = Thread.unpackFrom(sess, buf)
     loc = Location.unpackFrom(sess, buf)
-
-    #TODO: Do we even care about loc?
     return rid, t, loc
 
 register_unpack_impl(40, unpack_method_entry)
@@ -668,7 +663,7 @@ def register_unpack_value(tag, func):
     for t in tag:
         unpack_value_impl[ord(t)] = func
 
-register_unpack_value('[', lambda p, b: b.unpackObjectId())
+register_unpack_value('[', lambda p, b: b.unpackObjectId()) #TODO: IMPL
 register_unpack_value('B', lambda p, b: b.unpackU8())
 register_unpack_value('C', lambda p, b: chr(b.unpackU8()))
 register_unpack_value('F', lambda p, b: b.unpackFloat()) #TODO: TEST
