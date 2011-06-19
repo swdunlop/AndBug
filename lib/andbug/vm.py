@@ -40,6 +40,15 @@ class SessionElement(Element):
     def conn(self):
         return self.sess.conn
 
+class Value(SessionElement):
+    @property
+    def isPrimitive(self):
+        return self.TAG in PRIMITIVE_TAGS
+
+    @property
+    def isObject(self):
+        return self.TAG in OBJECT_TAGS
+
 class Frame(SessionElement):
     def __init__(self, sess, fid):
         SessionElement.__init__(self, sess)
@@ -89,6 +98,7 @@ class Frame(SessionElement):
         return vals
                                 
 class Thread(SessionElement):
+    #TODO: promote to Value
     def __init__(self, sess, tid):
         SessionElement.__init__(self, sess)
         self.tid = tid
@@ -382,7 +392,9 @@ class Class(SessionElement):
             obj.flags = flags
             return obj
     
-        self.methodList = andbug.data.view(load_method() for i in range(0, ct))
+        self.methodList = andbug.data.view(
+            load_method() for i in range(0, ct)
+        )
         self.methodByJni = andbug.data.multidict()
         self.methodByName = andbug.data.multidict()
 
@@ -602,7 +614,7 @@ class RefType(SessionElement):
     gen = defer(load_signature, 'gen')
     jni = defer(load_signature, 'jni')
 
-class Object(SessionElement):
+class Object(Value):
     def __init__(self, sess, oid):
         if oid == 0: raise VoidError()
         SessionElement.__init__(self, sess)
@@ -624,22 +636,97 @@ class Object(SessionElement):
 
     @property
     def gen(self):
-        return self.reftype.gen
+        return self.refType.gen
     
     @property
     def jni(self):
-        return self.reftype.jni
+        return self.refType.jni
 
-    def load_reftype(self):
+    def load_refType(self):
         conn = self.sess.conn
         buf = conn.buffer()
         self.packTo(buf)
         code, buf = conn.request(0x0901, buf.data())
         if code != 0:
             raise RequestError(code)
-        self.reftype = RefType.unpackFrom(self.sess, buf)
+        self.refType = RefType.unpackFrom(self.sess, buf)
     
-    reftype = defer(load_reftype, 'reftype')
+    refType = defer(load_refType, 'refType')
+
+    @property
+    def typeTag(self):
+        return self.refType.tag
+
+## with andbug.screed.item(str(obj)):
+##     if hasattr(obj, 'dump'):
+##        obj.dump()
+
+class Array(Object):
+    #def __repr__(self):
+    #    return '<array #%x %i>' % (self.oid, len(self))
+    
+    def __repr__(self):
+       return repr(self.getSlice())
+
+    #def __str__(self):
+    #   return repr(self.getSlice())
+
+    def __getitem__(self, index):
+        if index < 0:
+            self.getSlice(index-1, index)
+        else:
+            return self.getSlice(index, index+1)
+    
+    def __len__(self):
+        return self.length
+    
+    def __iter__(self): return iter(self.getSlice())
+
+    @property
+    def length(self):
+        conn = self.conn
+        buf = conn.buffer()
+        self.packTo(buf)
+        code, buf = conn.request(0x0d01, buf.data())        
+        if code != 0:
+            raise RequestError(code)
+        return buf.unpackInt()
+
+    def getSlice(self, first=0, last=-1):
+        length = self.length
+        if first > length:
+            raise IndexError('first offset (%s) past length of array' % first)
+        if last > length:
+            raise IndexError('last offset (%s) past length of array' % last)
+        if first < 0:
+            first = length + first
+        if last < 0:
+            last = length + last
+        if first > last:
+            first, last = last, first
+        
+        count = last - first
+        if not count: return []
+
+        conn = self.conn
+        buf = conn.buffer()
+        self.packTo(buf)
+        buf.packInt(first)
+        buf.packInt(count)
+        code, buf = conn.request(0x0d02, buf.data())
+        if code != 0:
+            raise RequestError(code)
+        tag = buf.unpackU8()
+        ct = buf.unpackInt()
+        
+        sess = self.sess
+        if tag in OBJECT_TAGS:
+            return tuple(unpack_value(sess, buf) for i in range(ct))
+        else:
+            return tuple(unpack_value(sess, buf, tag) for i in range(ct))
+
+PRIMITIVE_TAGS = set(ord(c) for c in 'BCFDIJSVZ')
+OBJECT_TAGS = set(ord(c) for c in 'stglcL')
 
 class String(Object):
     def __repr__(self):
@@ -663,7 +750,6 @@ def register_unpack_value(tag, func):
     for t in tag:
         unpack_value_impl[ord(t)] = func
 
-register_unpack_value('[', lambda p, b: b.unpackObjectId()) #TODO: IMPL
 register_unpack_value('B', lambda p, b: b.unpackU8())
 register_unpack_value('C', lambda p, b: chr(b.unpackU8()))
 register_unpack_value('F', lambda p, b: b.unpackFloat()) #TODO: TEST
@@ -676,6 +762,7 @@ register_unpack_value('Z', lambda p, b: (True if b.unpackU8() else False))
 register_unpack_value('L', Object.unpackFrom)
 register_unpack_value('tglc', Object.unpackFrom) #TODO: IMPL
 register_unpack_value('s', String.unpackFrom)
+register_unpack_value('[', Array.unpackFrom)
 
 def unpack_value(sess, buf, tag = None):
     if tag is None: tag = buf.unpackU8()
@@ -684,3 +771,4 @@ def unpack_value(sess, buf, tag = None):
         raise RequestError(tag)
     else:
         return fn(sess, buf)
+
