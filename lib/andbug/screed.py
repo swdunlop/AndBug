@@ -35,6 +35,7 @@ import textwrap
 import sys
 import subprocess
 import re
+import andbug.log
 
 rx_blocksep = re.compile('[\r\n][ \t]*[\r\n]+')
 rx_linesep = re.compile('[\r\n][ \t]*')
@@ -114,6 +115,10 @@ def text(data):
 def line(data, row=None):
     output().create_line(data, row)
 
+def dump(data):
+    output().create_dump(data)
+
+
 class surface(object):
     def __init__(self, output=None):
         if output is None:
@@ -162,12 +167,28 @@ class surface(object):
     def exit_item(self, title):
         pass
 
+    def create_dump(self, data):
+        width = self.width
+        indent = self.current_indent
+
+        if self.width is None:
+            width = 16
+        else:
+            width -= len(self.indent)
+            width -= 13 # overhead
+            width = width / 4 # dd_c
+
+        hex = andbug.log.format_hex(data, self.current_indent, width)
+        self.write(hex)
+        self.newline()
+
     def create_line(self, line, row = None):
         if row is None:
             self.wrap_line(self.current_indent + line)
         else:
             row = "%4i: " % row
             self.wrap_line(self.current_indent + row + line, " " * len(row))
+
     def wrap_line(self, line, indent=None):
         if self.width is None:
             self.write(line)
@@ -344,6 +365,8 @@ if __name__ == '__main__':
         item('''String that will be prepended to the first line of wrapped output. Counts towards the length of the first line.''')
         text('''this is some inbetween text''')
         item('''This is a much shorter item.''')
+    with section('Data'):
+        dump(open('/dev/urandom').read(1024))
     with section('Conclusion'):
         text('''The textwrap module provides two convenience functions, wrap() and fill(), as well as TextWrapper, the class that does all the work, and a utility function dedent(). If you're just wrapping or filling one or two text strings, the convenience functions should be good enough; otherwise, you should use an instance of TextWrapper for efficiency.''')
 
