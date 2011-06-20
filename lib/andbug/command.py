@@ -58,6 +58,7 @@ def seq(*args):
     return args
 
 def adb(*args):
+    print 'adb:', repr(args)
     try:
         return sh(seq("adb", *args))
     except OSError as err:
@@ -81,7 +82,7 @@ class Context(object):
         'constructs an adb forward for the context to access the pid via jdwp'
         temp = tempfile.mktemp()
         cmd = ('-s', self.dev) if self.dev else ()
-        cmd += ('forward', 'localfilesystem:' + temp,  'jdwp:' + self.pid)
+        cmd += ('forward', 'localfilesystem:' + temp,  'jdwp:%s' % self.pid)
         adb(*cmd)
         return temp
 
@@ -154,21 +155,27 @@ class Context(object):
         'determines the process id for the command based on dev, pid and/or name'
         if self.pid is not None: return
         ps = ('shell', 'ps', '-s', dev) if dev else ('shell', 'ps') 
+        ps = adb(*ps)
+        ps = ps.splitlines()
+        head = ps[0]
+        ps = (p.split() for p in ps[1:])
+
+        if head.startswith('PID'):
+            ps = ((int(p[0]), p[-1]) for p in ps)
+        elif head.startswith('USER'):
+            ps = ((int(p[1]), p[-1]) for p in ps)
+        else:
+            raise ConfigError('could not parse "adb shell ps" output')
+        
         if pid:
-            if pid not in map( 
-                lambda x: x.split()[1], 
-                adb(*ps).splitlines()[1:]
-            ):
+            ps = list(p for p in ps if p[0] == pid)
+            if not ps:
                 raise OptionError('could not find process ' + pid)
         elif name:
-            rows = filter( 
-                lambda x: x.split()[-1] == name, 
-                adb(*ps).splitlines()[1:]
-            )
-
-            if not rows:
+            ps = list(p for p in ps if p[1] == name)
+            if not ps:
                 raise OptionError('could not find process ' + name)
-            pid = rows[0].split()[1]
+            pid = ps[0][0]
         else:
             raise OptionError('process pid or name must be specified')
 
