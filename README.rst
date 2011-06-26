@@ -45,6 +45,23 @@ Examples can be found in the sample directory, but the easiest way to find prepa
 
 This command does not currently have the intelligence to automatically detect when it is running from the source directory and update the PYTHONPATH on the fly to match.  You will want to make sure that PYTHONPATH includes your andbug/lib directory.
 
+Common Problems
+---------------
+
+Q: I get "Permission Denied" when trying to use AndBug, but "adb shell" works.
+A: Your adbd is probably running as another user, blocking the effective use of ADB forward.  Use "adb kill-server" then "adb start-server" with the correct effective user.
+
+Q: I get "Shell Exception" when trying to use AndBug.
+A: Verify that your ADB setup is working using "adb devices" -- AndBug relies on ADB for a JDWP transport.
+
+Q: Does AndBug work on Windows?
+A: I think so; but since AndBug is unsupported software, you may experience less hand holding than Windows users are accustomed to.  Patches are welcome.
+
+Q: Does AndBug work on Mac OS X?
+A: Yes, but see the snarkiness about Windows users.  You didn't find this in an app store..
+
+A: Verify that your ADB setup is working using "adb devices" -- AndBug relies on ADB for a JDWP transport.
+
 License
 -------
 
