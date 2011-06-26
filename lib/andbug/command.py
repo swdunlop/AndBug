@@ -253,11 +253,14 @@ def dump_exc(exc):
 ACTION_LIST = []
 ACTION_MAP = {}
 
-def bind_action(name, fn):
+def bind_action(name, fn, aliases):
+    print "BIND", name, fn, aliases
     ACTION_LIST.append(fn)
     ACTION_MAP[name] = fn
+    for alias in aliases:
+        ACTION_MAP[alias] = fn
 
-def action(usage, opts = (), proc = True, shell = None):
+def action(usage, opts = (), proc = True, shell = None, aliases=()):
     'decorates a command implementation with usage and argument information'
     def bind(fn):
         fn.proc = proc
@@ -265,12 +268,15 @@ def action(usage, opts = (), proc = True, shell = None):
         fn.usage = usage
         fn.opts = OPTIONS[:] + opts
         fn.keys = list(opt[0] for opt in opts)
+        fn.aliases = aliases
         spec = inspect.getargspec(fn)
         defct = len(spec.defaults) if spec.defaults else 0
         argct = len(spec.args) if spec.args else 0
         fn.min_arity = argct - defct
         fn.max_arity = argct
-        bind_action(fn.__name__, fn)
+        fn.name = fn.__name__.replace('_', '-')
+
+        bind_action(fn.name, fn, aliases)
     return bind
 
 CMD_DIR_PATH = os.path.abspath(os.path.join( os.path.dirname(__file__), "cmd" ))

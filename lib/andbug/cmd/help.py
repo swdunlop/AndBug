@@ -98,11 +98,14 @@ def general_help(ctxt):
                 with andbug.screed.item( "-%s, --%s <opt>" % (k[0], k)):
                     andbug.screed.text(d)
 
-    
     with andbug.screed.section("Commands:"):
-        for row in andbug.command.ACTION_LIST:
+        actions = andbug.command.ACTION_LIST[:]
+        actions.sort(lambda a,b: cmp(a.name, b.name))
+
+        for row in actions:
             if ctxt.can_perform(row):
-                with andbug.screed.item("%s %s" % (row.__name__, row.usage)):
+                name  =' | '.join((row.name,) + row.aliases)
+                with andbug.screed.item("%s %s" % (name, row.usage)):
                     andbug.screed.text(row.__doc__.strip())
 
     with andbug.screed.section("Examples:"):
