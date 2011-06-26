@@ -12,7 +12,7 @@
 ## You should have received a copy of the GNU Lesser General Public License
 ## along with AndBug.  If not, see <http://www.gnu.org/licenses/>.
 
-'implementation of the "trace" command'
+'implementation of the "class-trace" command'
 
 import andbug.command, andbug.screed, andbug.options
 from Queue import Queue
@@ -31,8 +31,8 @@ def report_hit(t):
     finally:
         t.resume()
 
-@andbug.command.action('<class-path>')
-def trace(ctxt, cpath):
+@andbug.command.action('<class-path>', aliases=('ct', 'ctrace'))
+def class_trace(ctxt, cpath):
     'reports calls to dalvik methods associated with a class'
     cpath = andbug.options.parse_cpath(cpath)
 
