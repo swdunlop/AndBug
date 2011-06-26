@@ -171,6 +171,7 @@ class Context(object):
             raise ConfigError('could not parse "adb shell ps" output')
         
         if pid:
+            pid = int(pid)
             ps = list(p for p in ps if p[0] == pid)
             if not ps:
                 raise OptionError('could not find process ' + pid)
