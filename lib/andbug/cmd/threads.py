@@ -16,13 +16,13 @@
 
 import andbug.command, andbug.screed
 
-@andbug.command.action('')
-def threads(ctxt):
+@andbug.command.action('[<name>]')
+def threads(ctxt, name=None):
     'lists threads in the process'
     ctxt.sess.suspend()
 
     try:
-        for t in ctxt.sess.threads:
+        for t in ctxt.sess.threads(name):
             with andbug.screed.section(str(t)):
                 for f in t.frames:
                     name = str(f.loc)

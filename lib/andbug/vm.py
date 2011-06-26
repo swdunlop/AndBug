@@ -13,7 +13,7 @@
 ## along with AndBug.  If not, see <http://www.gnu.org/licenses/>.
 
 import andbug, andbug.data
-import threading
+import threading, re
 from andbug.data import defer
 from threading import Lock
 from Queue import Queue
@@ -591,8 +591,7 @@ class Session(object):
         if code != 0:
             raise RequestError(code)
 
-    @property
-    def threads(self):
+    def threads(self, name=None):
         pool = self.pool
         code, buf = self.conn.request(0x0104, '')
         if code != 0:
@@ -602,7 +601,16 @@ class Session(object):
         def load_thread():
             tid = buf.unpackObjectId()
             return pool(Thread, self, tid)
-        return andbug.data.view(load_thread() for x in range(0,ct))
+
+        seq = (load_thread() for x in range(0,ct))
+        if name is not None:
+            if rx_dalvik_tname.match(name):
+                seq = (t for t in seq if t.name == name)
+            else:
+                seq = (t for t in seq if t.name.split(' ',1)[-1] == name)
+        return andbug.data.view(seq)
+
+rx_dalvik_tname = re.compile('^<[0-9]+> .*$')
 
 class RefType(SessionElement):
     def __init__(self, sess, tag, tid):
