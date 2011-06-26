@@ -53,13 +53,15 @@ class ConfigError(UserError):
     'indicates an error in the configuration of AndBug'
     pass
 
+def perr(*args):
+    print >>sys.stderr, ' '.join(map(str, args))
+
 RE_INT = re.compile('^[0-9]+$')
 
 def seq(*args):
     return args
 
 def adb(*args):
-    print 'adb:', repr(args)
     try:
         return sh(seq("adb", *args))
     except OSError as err:
@@ -207,24 +209,24 @@ class Context(object):
         act = ACTION_MAP.get(cmd)
 
         if not act:
-            print '!! command not supported: "%s."' % cmd
+            perr('!! command not supported: "%s."' % cmd)
             return False
 
         if not self.can_perform(act):
             if ctxt.shell:
-                print '!! %s is not available in the shell.' % cmd
+                perr('!! %s is not available in the shell.' % cmd)
             else:
-                print '!! %s is only available in the shell.' % cmd
+                perr('!! %s is only available in the shell.' % cmd)
             return False
 
         args, opts = self.parseOpts(args, act.opts, act.proc)
         argct = len(args) + 1 
 
         if argct < act.min_arity:
-            print 'andbug: command "%s" requires more arguments.' % cmd
+            perr('!! command "%s" requires more arguments.' % cmd)
             return False
         elif argct > act.max_arity:
-            print 'andbug: too many arguments for command "%s."' % cmd
+            perr('!! too many arguments for command "%s."' % cmd)
             return False
 
         opts = filter(lambda opt: opt[0] in act.keys, opts)
@@ -254,7 +256,6 @@ ACTION_LIST = []
 ACTION_MAP = {}
 
 def bind_action(name, fn, aliases):
-    print "BIND", name, fn, aliases
     ACTION_LIST.append(fn)
     ACTION_MAP[name] = fn
     for alias in aliases:
@@ -298,7 +299,6 @@ def run_command(args, ctxt = None):
     for item in args:
         if item in ('-h', '--help', '-?', '-help'):
             args = ('help', args[0])
-            print args
             break
     
     return ctxt.perform(args[0], args[1:])
