@@ -31,6 +31,7 @@ import os, os.path, sys, getopt, tempfile, inspect, re
 import andbug.proto, andbug.vm, andbug.cmd, andbug.source
 import traceback
 from andbug.util import sh
+from time import sleep
 
 #TODO: make short_opts, long_opts, opt_table a dynamic parsing derivative.
 
@@ -187,6 +188,20 @@ class Context(object):
             return act.shell != False
         return act.shell != True
 
+    def block_exit(self):
+        'prevents termination outside of shells'
+
+        if self.shell:
+            # we do not need to block_exit, readline is doing a great
+            # job of that for us.
+            return
+
+        while True:
+            # the purpose of the main thread becomes sleeping forever
+            # this is because Python's brilliant threading model only
+            # allows the main thread to perceive CTRL-C.
+            sleep(3600)
+        
     def perform(self, cmd, args):
         'performs the named command with the supplied arguments'
         act = ACTION_MAP.get(cmd)

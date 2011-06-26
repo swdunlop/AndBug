@@ -13,6 +13,7 @@
 ## along with AndBug.  If not, see <http://www.gnu.org/licenses/>.
 
 import andbug, andbug.data
+import threading
 from andbug.data import defer
 from threading import Lock
 from Queue import Queue
@@ -196,7 +197,7 @@ class Location(SessionElement):
         tag, cid, mid, loc = buf.unpack('1tm8')
         return sess.pool(impl, sess, cid, mid, loc)
 
-    def hook(self, queue = None):
+    def hook(self, func = None, queue = None):
         conn = self.conn
         buf = conn.buffer()
         # 40:EK_METHOD_ENTRY, 1: SP_THREAD, 1 condition of type Location (7)
@@ -207,7 +208,7 @@ class Location(SessionElement):
         if code != 0:
             raise RequestError(code)
         eid = buf.unpackInt()
-        return self.sess.hook(eid, queue)
+        return self.sess.hook(eid, func, queue)
     
     @property
     def native(self):
@@ -359,7 +360,7 @@ class Class(SessionElement):
     def __repr__(self):
         return '<class %s>' % self
 
-    def hookEntries(self, queue):
+    def hookEntries(self, func = None, queue = None):
         conn = self.conn
         buf = conn.buffer()
         # 40:EK_METHOD_ENTRY, 1: SP_THREAD, 1 condition of type ClassRef (4)
@@ -368,7 +369,7 @@ class Class(SessionElement):
         if code != 0:
             raise RequestError(code)
         eid = buf.unpackInt()
-        return self.sess.hook(eid, queue)
+        return self.sess.hook(eid, func, queue)
         
     def load_methods(self):
         cid = self.cid
@@ -443,16 +444,24 @@ class Class(SessionElement):
         return name
 
 class Hook(SessionElement):
-    def __init__(self, sess, ident, queue = None):
+    def __init__(self, sess, ident, func = None, queue = None):
         SessionElement.__init__(self, sess)
-        self.queue = queue or Queue()
+        if queue is not None:
+            self.queue = queue
+        elif func is None:
+            self.queue = queue or Queue()
+        self.func = func        
+                                    
         self.ident = ident
         #TODO: unclean
         with self.sess.ectl:
             self.sess.emap[ident] = self
 
     def put(self, data):
-        return self.queue.put(data)
+        if self.func is not None:
+            return self.func(data)
+        else:
+            return self.queue.put(data)
             
     def get(self, block = False, timeout = None):
         return self.queue.get(block, timeout)
@@ -492,12 +501,22 @@ class Session(object):
         self.conn = conn
         self.emap = {}
         self.ectl = Lock()
+        self.evtq = Queue()
         if conn is not None:
-            conn.hook(0x4064, self.processEvent)
+            conn.hook(0x4064, self.evtq)
             #TODO: REDUNDANT
+        self.ethd = threading.Thread(
+            name='Session', target=self.run
+        )
+        self.ethd.daemon=1
+        self.ethd.start()
 
-    def hook(self, ident, queue = None):
-        return Hook(self, ident, queue)
+    def run(self):
+        while True:
+            self.processEvent(*self.evtq.get())
+
+    def hook(self, ident, func = None, queue = None):
+        return Hook(self, ident, func, queue)
 
     def processEvent(self, ident, buf):
         pol, ct = buf.unpack('1i')
@@ -519,7 +538,7 @@ class Session(object):
             if self.conn is None: 
                 self.conn = andbug.proto.connect('127.0.0.1', self.portno)
         
-            self.conn.hook(0x4064, self.processEvent)
+            self.conn.hook(0x4064, func=self.processEvent)
         return self.conn
     
     def load_classes(self):
@@ -662,14 +681,19 @@ class Object(Value):
 ##        obj.dump()
 
 class Array(Object):
-    #def __repr__(self):
-    #    return '<array #%x %i>' % (self.oid, len(self))
-    
     def __repr__(self):
-       return repr(self.getSlice())
+        data = self.getSlice()
 
-    #def __str__(self):
-    #   return repr(self.getSlice())
+        # Java very commonly uses character and byte arrays to express
+        # text instead of strings, because they are mutable and have 
+        # different encoding implications.
+
+        if self.jni == '[C':
+            return repr(''.join(data))
+        elif self.jni == '[B':
+            return repr(''.join(chr(c) for c in data))
+        else:
+            return repr(data)
 
     def __getitem__(self, index):
         if index < 0:

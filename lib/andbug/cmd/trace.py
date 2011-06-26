@@ -17,27 +17,28 @@
 import andbug.command, andbug.screed, andbug.options
 from Queue import Queue
 
+def report_hit(t):
+    t = t[0]
+    try:
+        with andbug.screed.section("trace %s" % t):
+            for f in t.frames:
+                name = str(f.loc)
+                if f.native:
+                    name += ' <native>'
+                with andbug.screed.item(name):
+                    for k, v in f.values.items():
+                        andbug.screed.item( "%s=%s" %(k, v))
+    finally:
+        t.resume()
+
 @andbug.command.action('<class-path>')
 def trace(ctxt, cpath):
     'reports calls to dalvik methods associated with a class'
-    q = Queue()    
-
     cpath = andbug.options.parse_cpath(cpath)
+
     with andbug.screed.section('Setting Hooks'):
         for c in ctxt.sess.classes(cpath):
-            c.hookEntries(q)
+            c.hookEntries(func = report_hit)
             andbug.screed.item('Hooked %s' % c)
-
-    while True:
-        try:
-            t = q.get()[0]
-            with andbug.screed.section(str(t)):
-                for f in t.frames:
-                    name = str(f.loc)
-                    if f.native:
-                        name += ' <native>'
-                    with andbug.screed.item(name):
-                        for k, v in f.values.items():
-                            andbug.screed.item( "%s=%s" %(k, v))
-        finally:
-            t.resume()
+    
+    ctxt.block_exit()

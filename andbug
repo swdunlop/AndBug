@@ -17,43 +17,31 @@
 
 import andbug, sys, os, os.path
 import andbug.cmd, andbug.command
-from Queue import Queue, Empty
 import threading, traceback
-
-inv = os.path.basename(sys.argv[0]).lower()
-
-if inv == "andbug":
-    args = sys.argv[1:]
-else:
-    args = [inv] + sys.argv[1:]
-
-if not args: args = ['help']
+    
 andbug.command.load_commands()
 
-# this mess is to work around python's ctrl-c insanity
-q = Queue()
-
-def main():
+def main(args):
     import atexit
     atexit.register(sys.stdout.write, '\x1B[0m\n')
 
     try:
-        q.put(andbug.command.run_command(args))
+        andbug.command.run_command(args)
+        sys.exit(0)
     except andbug.command.UserError as err:
         print '!! %s' % err
-        q.put(-1)
+        sys.exit(-1)
     except Exception as exc:
         traceback.print_exc()
-        q.put(-1)
+        sys.exit(-2)
 
-threading.Thread(target=main).start()
-try:
-    while True:
-        try:
-            ret = q.get(True, .01)
-            if ret is not None: 
-                sys.exit(ret)
-        except Empty:
-            pass # sigh
-except KeyboardInterrupt:
-    sys.exit(1)
+if __name__ == '__main__':
+    inv = os.path.basename(sys.argv[0]).lower()
+    if inv == "andbug":
+        args = sys.argv[1:]
+    else:
+        args = [inv] + sys.argv[1:]
+
+    if not args: args = ['help']
+    main(args)
+

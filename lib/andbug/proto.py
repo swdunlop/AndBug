@@ -191,12 +191,12 @@ class Connection(Thread):
 
     def processRequest(self, ident, code, data):
         'internal to the i/o thread w/ recv ctrl; processes incoming request'
-        fn = self.rmap.get(code)
-        if not fn: return #TODO
+        chan = self.rmap.get(code)
+        if not chan: return #TODO
         buf = JdwpBuffer()
         buf.config(*self.sizes)
         buf.prepareUnpack(data)
-        fn(ident, buf)
+        return chan.put((ident, buf))
         
     def processResponse(self, ident, code, data):
         'internal to the i/o thread w/ recv ctrl; processes incoming response'
@@ -205,17 +205,16 @@ class Connection(Thread):
         buf = JdwpBuffer()
         buf.config(*self.sizes)
         buf.prepareUnpack(data)
-        chan.put((code, buf))
+        return chan.put((code, buf))
 
-    def hook(self, code, func):
+    def hook(self, code, chan):
         '''
-        func will be invoked when code requests are received in the i/o thread;
-        you cannot safely issue requests here -- therefore, you should generally
-        pass the call to a queue.
+        when code requests are received, they will be put in chan for
+        processing
         '''
 
         with self.xmitlock:
-            self.bindqueue.put(('r', code, func))
+            self.bindqueue.put(('r', code, chan))
         
     ####################################################### TRANSMITTING PACKETS
     
