@@ -35,12 +35,48 @@ class Element(object):
 
 class SessionElement(Element):
     def __init__(self, sess):
-        assert isinstance(sess, Session)
         self.sess = sess
     @property
     def conn(self):
         return self.sess.conn
 
+class Field(SessionElement):
+    def __init__(self, session, fid):
+        SessionElement.__init__(self, session)
+        self.fid = fid
+    
+    @classmethod 
+    def unpackFrom(impl, sess, buf):
+        return sess.pool(impl, sess, buf.unpackFieldId())
+    
+    @property
+    def public(self):
+        return self.flags & 0x0001
+    
+    @property
+    def private(self):
+        return self.flags & 0x0002
+    
+    @property
+    def protected(self):
+        return self.flags & 0x0004
+    
+    @property
+    def static(self):
+        return self.flags & 0x0008
+    
+    @property
+    def final(self):
+        return self.flags & 0x0010
+
+    @property
+    def volatile(self):
+        return self.flags & 0x0040
+    
+    @property
+    def transient(self):
+        return self.flags & 0x0080
+    
 class Value(SessionElement):
     @property
     def isPrimitive(self):
@@ -56,6 +92,7 @@ class Frame(SessionElement):
         self.fid = fid
         self.loc = None
         self.tid = None
+
     def __str__(self):
         return 'frame %s, at %s' % (self.fid, self.loc)   
 
@@ -97,7 +134,7 @@ class Frame(SessionElement):
             vals[s.name] = unpack_value(sess, buf)
 
         return vals
-                                
+
 class Thread(SessionElement):
     #TODO: promote to Value
     def __init__(self, sess, tid):
@@ -371,6 +408,52 @@ class Class(SessionElement):
         eid = buf.unpackInt()
         return self.sess.hook(eid, func, queue)
         
+    def load_fields(self):
+        sess = self.sess
+        conn = self.conn
+        buf = conn.buffer()
+        buf.pack("t", self.cid)
+        code, buf = conn.request(0x020E, buf.data())
+        if code != 0:
+            raise RequestError(code)
+
+        ct = buf.unpackU32()
+
+        def load_field():
+            field = Field.unpackFrom(sess, buf)
+            name, jni, gen, flags = buf.unpack('$$$i')
+            field.name = name
+            field.jni = jni
+            field.gen = gen
+            field.flags = flags
+            return field
+        
+        self.fieldList = andbug.data.view(
+            load_field() for i in range(ct)
+        )        
+    fieldList = defer(load_fields, 'fieldList')
+
+    @property
+    def statics(self):
+        sess = self.sess
+        conn = self.conn
+        buf = conn.buffer()
+        buf.packTypeId(self.cid)
+        fields = list(f for f in self.fieldList if f.static)
+        buf.packInt(len(fields))
+        for field in fields:
+            buf.packFieldId(field.fid)
+        code, buf = conn.request(0x0206, buf.data())
+        if code != 0:
+            raise RequestError(code)
+        ct = buf.unpackInt()
+
+        vals = {}
+        for x in range(ct):
+            f = fields[x]
+            vals[f.name] = unpack_value(sess, buf)
+        return vals
+
     def load_methods(self):
         cid = self.cid
         sess = self.sess
@@ -683,6 +766,27 @@ class Object(Value):
     @property
     def typeTag(self):
         return self.refType.tag
+
+    @property
+    def fields(self):
+        sess = self.sess
+        conn = self.conn
+        buf = conn.buffer()
+        buf.packTypeId(self.cid)
+        fields = list(f for f in self.fieldList if not f.static)
+        buf.packInt(len(fields))
+        for field in fields:
+            buf.packFieldId(field.fid)
+        code, buf = conn.request(0x1001, buf.data())
+        if code != 0:
+            raise RequestError(code)
+        ct = buf.unpackInt()
+
+        for x in range(ct):
+            f = fields[x]
+            vals[f.name] = unpack_value(sess, buf)
+
+        return vals
 
 ## with andbug.screed.item(str(obj)):
 ##     if hasattr(obj, 'dump'):
