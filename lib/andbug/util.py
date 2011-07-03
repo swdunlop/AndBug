@@ -24,6 +24,10 @@
 ## POSSIBILITY OF SUCH DAMAGE.
 
 import subprocess, threading, os, os.path
+import re
+from andbug.errors import *
+RE_INT = re.compile('^[0-9]+$')
+
 from cStringIO import StringIO
 
 class ShellException( Exception ):
@@ -85,3 +89,62 @@ def cat(*seqs):
         for item in seq:
             yield item
 
+def seq(*args):
+    return args
+
+def adb(*args):
+    try:
+        return sh(seq("adb", *args))
+    except OSError as err:
+        raise ConfigError('could not find "adb" from the Android SDK in your PATH')
+
+def find_dev(dev=None):
+    'determines the device for the command based on dev'
+    if dev:
+        if dev not in map( 
+            lambda x: x.split()[0], 
+            adb('devices').splitlines()[1:-1]
+        ):
+            raise OptionError('device serial number not online')
+    else:
+        lines = adb('devices').splitlines()
+        if len(lines) != 3:
+            raise OptionError(
+                'you must specify a device serial unless there is only'
+                ' one online'
+            )
+        dev = lines[1].split()[0]
+        
+    return dev
+
+def find_pid(pid, dev=None):
+    'determines the process id for the command based on dev, pid and/or name'
+
+    ps = ('-s', dev, 'shell', 'ps') if dev else ('shell', 'ps') 
+    ps = adb(*ps)
+    ps = ps.splitlines()
+    head = ps[0]
+    ps = (p.split() for p in ps[1:])
+
+    if head.startswith('PID'):
+        ps = ((int(p[0]), p[-1]) for p in ps)
+    elif head.startswith('USER'):
+        ps = ((int(p[1]), p[-1]) for p in ps)
+    else:
+        raise ConfigError('could not parse "adb shell ps" output')
+    
+    if RE_INT.match(str(pid)):
+        pid = int(pid)
+        ps = list(p for p in ps if p[0] == pid)
+        if not ps:
+            raise OptionError('could not find process ' + pid)
+    elif pid:
+        ps = list(ps)
+        ps = list(p for p in ps if p[1] == pid)
+        if not ps:
+            raise OptionError('could not find process ' + pid)
+        pid = ps[0][0]
+    else:
+        raise OptionError('process pid or name must be specified')
+
+    return pid

@@ -18,7 +18,8 @@ manageable request/response API using an input worker thread in the
 background and a number of mutexes to control contests for output.
 '''
 
-import socket
+import socket, tempfile
+import andbug.util
 from threading import Thread, Lock
 from andbug.jdwp import JdwpBuffer
 from Queue import Queue, Empty as EmptyQueue
@@ -48,6 +49,14 @@ IDSZ_REQ = (
     '\x00'             # Flags
     '\x01\x07'         # Command 1:7
 )
+
+def forward(pid, dev=None):
+    'constructs an adb forward for the context to access the pid via jdwp'
+    temp = tempfile.mktemp()
+    cmd = ('-s', dev) if dev else ()
+    cmd += ('forward', 'localfilesystem:' + temp,  'jdwp:%s' % pid)
+    andbug.util.adb(*cmd)
+    return temp
 
 def connect(addr, portno = None, trace=False):
     'connects to an AF_UNIX or AF_INET JDWP transport'

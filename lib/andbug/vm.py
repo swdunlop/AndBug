@@ -12,7 +12,7 @@
 ## You should have received a copy of the GNU Lesser General Public License
 ## along with AndBug.  If not, see <http://www.gnu.org/licenses/>.
 
-import andbug, andbug.data
+import andbug, andbug.data, andbug.proto
 import threading, re
 from andbug.data import defer
 from threading import Lock
@@ -579,15 +579,13 @@ def unpack_method_entry(sess, buf):
 register_unpack_impl(40, unpack_method_entry)
 
 class Session(object):
-    def __init__(self, conn = None):
+    def __init__(self, conn):
         self.pool = andbug.data.pool()
         self.conn = conn
         self.emap = {}
         self.ectl = Lock()
         self.evtq = Queue()
-        if conn is not None:
-            conn.hook(0x4064, self.evtq)
-            #TODO: REDUNDANT
+        conn.hook(0x4064, self.evtq)
         self.ethd = threading.Thread(
             name='Session', target=self.run
         )
@@ -615,17 +613,8 @@ class Session(object):
             if hook is not None:
                 hook.put(evt[1:])
                           
-    def connect(self, portno = None):
-        if portno: 
-            self.portno = portno
-            if self.conn is None: 
-                self.conn = andbug.proto.connect('127.0.0.1', self.portno)
-        
-            self.conn.hook(0x4064, func=self.processEvent)
-        return self.conn
-    
     def load_classes(self):
-        code, buf = self.connect().request(0x0114)
+        code, buf = self.conn.request(0x0114)
         if code != 0:
             raise RequestError(code)
 
@@ -907,4 +896,9 @@ def unpack_value(sess, buf, tag = None):
         raise RequestError(tag)
     else:
         return fn(sess, buf)
+
+def connect(pid, dev=None):
+    'connects using proto.forward() to the process associated with this context'
+    conn = andbug.proto.connect(andbug.proto.forward(pid, dev))
+    return andbug.vm.Session(conn)
 

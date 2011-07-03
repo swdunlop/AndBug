@@ -27,9 +27,6 @@ import andbug.command
 import andbug.vm
 import andbug.screed
 
-## andbug.proto -- the jdwp protocol as used and abstracted
-from andbug.proto import connect
-
 ## andbug.command -- utilities for writing andbug commands
 from andbug.command import action
 
@@ -39,5 +36,5 @@ from andbug.command import action
 ## andbug.vm -- abstraction of the virtual machine model
 from andbug.vm import (
     Element, Session, Frame, Object, String, Method, RefType, Slot, 
-    Thread, Hook, Location, Class
+    Thread, Hook, Location, Class, connect
 )

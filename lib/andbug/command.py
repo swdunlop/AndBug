@@ -27,11 +27,11 @@ Commands for andbug are typically defined as ::
 
 '''
 
-import os, os.path, sys, getopt, tempfile, inspect, re
-import andbug.proto, andbug.vm, andbug.cmd, andbug.source
+import os, os.path, sys, getopt, inspect
+import andbug.vm, andbug.cmd, andbug.source, andbug.util
 import traceback
-from andbug.util import sh
 from time import sleep
+from andbug.errors import *
 
 #TODO: make short_opts, long_opts, opt_table a dynamic parsing derivative.
 
@@ -41,32 +41,6 @@ OPTIONS = (
     ('src', 'adds a directory where .java or .smali files could be found')
 )
 
-class UserError(Exception):
-    'indicates an error in how AndBug was used'
-    pass
-
-class OptionError(UserError):
-    'indicates an error parsing an option supplied to a command'
-    pass
-
-class ConfigError(UserError):
-    'indicates an error in the configuration of AndBug'
-    pass
-
-def perr(*args):
-    print >>sys.stderr, ' '.join(map(str, args))
-
-RE_INT = re.compile('^[0-9]+$')
-
-def seq(*args):
-    return args
-
-def adb(*args):
-    try:
-        return sh(seq("adb", *args))
-    except OSError as err:
-        raise ConfigError('could not find "adb" from the Android SDK in your PATH')
-
 class Context(object):
     '''
     Commands in AndBug are associated with a command Context, which contains
@@ -75,25 +49,15 @@ class Context(object):
     '''
 
     def __init__(self):
-        self.conn = None
         self.sess = None
         self.pid = None
         self.dev = None
         self.shell = False
-
-    def forward(self):
-        'constructs an adb forward for the context to access the pid via jdwp'
-        temp = tempfile.mktemp()
-        cmd = ('-s', self.dev) if self.dev else ()
-        cmd += ('forward', 'localfilesystem:' + temp,  'jdwp:%s' % self.pid)
-        adb(*cmd)
-        return temp
-
+    
     def connect(self):
-        'connects using .forward() to the process associated with this context'
+        'connects using vm.connect to the process if not already connected'
         if self.sess is not None: return
-        self.conn = andbug.proto.connect(self.forward())
-        self.sess = andbug.vm.Session(self.conn)
+        self.sess = andbug.vm.connect(self.pid, self.dev)
 
     def parseOpts(self, args, options=OPTIONS, proc=True):
         'parse command options in OPTIONS format'
@@ -117,73 +81,21 @@ class Context(object):
         
         if proc:
             pid = t.get('pid')
-            name = None
-
-            if pid is None:
-                pass # do nothing
-            elif RE_INT.match(pid):
-                pass # continue to do nothing
-            else:
-                name = pid
-                pid = None
-
             dev = t.get('dev')
 
             self.findDev(dev)
-            self.findPid(dev, pid, name)
+            self.findPid(pid)
         return args, opts
 
     def findDev(self, dev=None):
         'determines the device for the command based on dev'
         if self.dev is not None: return
-        if dev:
-            if dev not in map( 
-                lambda x: x.split()[0], 
-                adb('devices').splitlines()[1:-1]
-            ):
-                raise OptionError('device serial number not online')
-            
-            self.dev = dev            
-        else:
-            if len(adb('devices').splitlines()) != 3:
-                raise OptionError(
-                    'you must specify a device serial unless there is only'
-                    ' one online'
-                )
-            self.dev = None
+        self.dev = andbug.util.find_dev(dev)
 
-        self.dev = dev
-    
-    def findPid(self, dev=None, pid=None, name=None):
-        'determines the process id for the command based on dev, pid and/or name'
+    def findPid(self, pid=None):
+        'determines the process id for the command based on dev, pid and/or name'        
         if self.pid is not None: return
-        ps = ('shell', 'ps', '-s', dev) if dev else ('shell', 'ps') 
-        ps = adb(*ps)
-        ps = ps.splitlines()
-        head = ps[0]
-        ps = (p.split() for p in ps[1:])
-
-        if head.startswith('PID'):
-            ps = ((int(p[0]), p[-1]) for p in ps)
-        elif head.startswith('USER'):
-            ps = ((int(p[1]), p[-1]) for p in ps)
-        else:
-            raise ConfigError('could not parse "adb shell ps" output')
-        
-        if pid:
-            pid = int(pid)
-            ps = list(p for p in ps if p[0] == pid)
-            if not ps:
-                raise OptionError('could not find process ' + pid)
-        elif name:
-            ps = list(p for p in ps if p[1] == name)
-            if not ps:
-                raise OptionError('could not find process ' + name)
-            pid = ps[0][0]
-        else:
-            raise OptionError('process pid or name must be specified')
-
-        self.pid = pid
+        self.pid = andbug.util.find_pid(pid, self.dev)
 
     def can_perform(self, act):
         'uses the act.shell property to determine if it makes sense'
