@@ -212,9 +212,9 @@ class Thread(SessionElement):
         return buf.unpackStr()
 
 class Location(SessionElement):
-    def __init__(self, sess, cid, mid, loc):
+    def __init__(self, sess, tid, mid, loc):
         SessionElement.__init__(self, sess)
-        self.cid = cid
+        self.tid = tid
         self.mid = mid
         self.loc = loc
         self.line = None
@@ -227,12 +227,12 @@ class Location(SessionElement):
 
     def packTo(self, buf):
         c = self.klass
-        buf.ipack('1tm8', c.tag, self.cid, self.mid, self.loc)
+        buf.ipack('1tm8', c.tag, self.tid, self.mid, self.loc)
 
     @classmethod
     def unpackFrom(impl, sess, buf):
-        tag, cid, mid, loc = buf.unpack('1tm8')
-        return sess.pool(impl, sess, cid, mid, loc)
+        tag, tid, mid, loc = buf.unpack('1tm8')
+        return sess.pool(impl, sess, tid, mid, loc)
 
     def hook(self, func = None, queue = None):
         conn = self.conn
@@ -253,11 +253,11 @@ class Location(SessionElement):
 
     @property
     def method(self):
-        return self.sess.pool(Method, self.sess, self.cid, self.mid)
+        return self.sess.pool(Method, self.sess, self.tid, self.mid)
 
     @property
     def klass(self):
-        return self.sess.pool(Class, self.sess, self.cid)
+        return self.sess.pool(Class, self.sess, self.tid)
 
     @property
     def slots(self):
@@ -271,9 +271,9 @@ class Location(SessionElement):
         return tuple() if self.native else tuple(filter_slots())
 
 class Slot(SessionElement):
-    def __init__(self, sess, cid, mid, index):
+    def __init__(self, sess, tid, mid, index):
         SessionElement.__init__(self, sess)
-        self.cid = cid
+        self.tid = tid
         self.mid = mid
         self.index = index
         self.name = None
@@ -285,7 +285,7 @@ class Slot(SessionElement):
             return 'slot at index %i' % (self.index)
 
     def load_slot(self):
-        self.sess.pool(Class, self.sess, cid).load_slots()
+        self.sess.pool(Class, self.sess, tid).load_slots()
 
     firstLoc = defer(load_slot, 'firstLoc')
     locLength = defer(load_slot, 'locLength')
@@ -298,14 +298,14 @@ class Slot(SessionElement):
         return ord(self.jni[0])
 
 class Method(SessionElement):
-    def __init__(self, sess, cid, mid):
+    def __init__(self, sess, tid, mid):
         SessionElement.__init__(self, sess)
-        self.cid = cid
+        self.tid = tid
         self.mid = mid
 
     @property
     def klass(self):
-        return self.sess.pool(Class, self.sess, self.cid)
+        return self.sess.pool(Class, self.sess, self.tid)
 
     def __str__(self):
         return '%s.%s%s' % (
@@ -319,9 +319,9 @@ class Method(SessionElement):
         sess = self.sess
         conn = sess.conn
         pool = sess.pool
-        cid = self.cid
+        tid = self.tid
         mid = self.mid
-        data = conn.buffer().pack('om', cid, mid)
+        data = conn.buffer().pack('om', tid, mid)
         code, buf = conn.request(0x0601, data)
         if code != 0: raise RequestError(code)
         
@@ -332,14 +332,14 @@ class Method(SessionElement):
             self.lineTable = andbug.data.view([])
             #TODO: How do we handle native methods?
  
-        self.firstLoc = pool(Location, sess, cid, mid, f)
-        self.lastLoc = pool(Location, sess, cid, mid, l)
+        self.firstLoc = pool(Location, sess, tid, mid, f)
+        self.lastLoc = pool(Location, sess, tid, mid, l)
 
         ll = {}
         self.lineLocs = ll
         def line_loc():
             loc, line  = buf.unpack('8i')
-            loc = pool(Location, sess, cid, mid, loc)
+            loc = pool(Location, sess, tid, mid, loc)
             loc.line = line
             ll[line] = loc
 
@@ -362,9 +362,9 @@ class Method(SessionElement):
         sess = self.sess
         conn = self.conn
         pool = sess.pool
-        cid = self.cid
+        tid = self.tid
         mid = self.mid
-        data = conn.buffer().pack('om', cid, mid)
+        data = conn.buffer().pack('om', tid, mid)
         code, buf = conn.request(0x0605, data)
         if code != 0: raise RequestError(code)
     
@@ -373,7 +373,7 @@ class Method(SessionElement):
          
         def load_slot():
             codeIndex, name, jni, gen, codeLen, index  = buf.unpack('l$$$ii')
-            slot = pool(Slot, sess, cid, mid, index)
+            slot = pool(Slot, sess, tid, mid, index)
             slot.firstLoc = codeIndex
             slot.locLength = codeLen
             slot.name = name
@@ -385,11 +385,40 @@ class Method(SessionElement):
         self.slots = andbug.data.view(load_slot() for i in range(0,sct))
 
     slots = defer(load_slot_table, 'slots')
-                
-class Class(SessionElement): 
-    def __init__(self, sess, cid):
+
+class RefType(SessionElement):
+    def __init__(self, sess, tag, tid):
         SessionElement.__init__(self, sess)
-        self.cid = cid
+        self.tag = tag
+        self.tid = tid
+    
+    def __repr__(self):
+        return '<ref %s %s#%x>' % (self.jni, chr(self.tag), self.tid)
+
+    @classmethod 
+    def unpackFrom(impl, sess, buf):
+        return sess.pool(impl, sess, buf.unpackU8(), buf.unpackTypeId())
+
+    def packTo(self, buf):
+        buf.packObjectId(self.tid)
+
+    def load_signature(self):
+        conn = self.conn
+        buf = conn.buffer()
+        self.packTo(buf)
+        code, buf = conn.request(0x020d, buf.data())
+        if code != 0:
+            raise RequestError(code)
+        self.jni = buf.unpackStr()
+        self.gen = buf.unpackStr()
+
+    gen = defer(load_signature, 'gen')
+    jni = defer(load_signature, 'jni')
+
+                
+class Class(RefType): 
+    def __init__(self, sess, tid):
+        RefType.__init__(self, sess, tid)
     
     def __str__(self):
         return self.name
@@ -401,7 +430,7 @@ class Class(SessionElement):
         conn = self.conn
         buf = conn.buffer()
         # 40:EK_METHOD_ENTRY, 1: SP_THREAD, 1 condition of type ClassRef (4)
-        buf.pack('11i1t', 40, 1, 1, 4, self.cid) 
+        buf.pack('11i1t', 40, 1, 1, 4, self.tid) 
         code, buf = conn.request(0x0F01, buf.data())
         if code != 0:
             raise RequestError(code)
@@ -412,7 +441,7 @@ class Class(SessionElement):
         sess = self.sess
         conn = self.conn
         buf = conn.buffer()
-        buf.pack("t", self.cid)
+        buf.pack("t", self.tid)
         code, buf = conn.request(0x020E, buf.data())
         if code != 0:
             raise RequestError(code)
@@ -438,7 +467,7 @@ class Class(SessionElement):
         sess = self.sess
         conn = self.conn
         buf = conn.buffer()
-        buf.packTypeId(self.cid)
+        buf.packTypeId(self.tid)
         fields = list(f for f in self.fieldList if f.static)
         buf.packInt(len(fields))
         for field in fields:
@@ -455,12 +484,12 @@ class Class(SessionElement):
         return vals
 
     def load_methods(self):
-        cid = self.cid
+        tid = self.tid
         sess = self.sess
         conn = self.conn
         pool = sess.pool
         buf = conn.buffer()
-        buf.pack("t", cid)
+        buf.pack("t", tid)
         code, buf = conn.request(0x020F, buf.data())
         if code != 0:
             raise RequestError(code)
@@ -469,7 +498,7 @@ class Class(SessionElement):
                 
         def load_method():
             mid, name, jni, gen, flags = buf.unpack('m$$$i')
-            obj = pool(Method, sess, cid, mid)
+            obj = pool(Method, sess, tid, mid)
             obj.name = name
             obj.jni = jni
             obj.gen = gen
@@ -619,10 +648,10 @@ class Session(object):
             raise RequestError(code)
 
         def load_class():
-            tag, cid, jni, gen, flags = buf.unpack('1t$$i')
-            obj = self.pool(Class, self, cid)
+            tag, tid, jni, gen, flags = buf.unpack('1t$$i')
+            obj = self.pool(Class, self, tid)
             obj.tag = tag
-            obj.cid = cid
+            obj.tid = tid
             obj.jni = jni
             obj.gen = gen
             obj.flags = flags
@@ -684,35 +713,6 @@ class Session(object):
 
 rx_dalvik_tname = re.compile('^<[0-9]+> .*$')
 
-class RefType(SessionElement):
-    def __init__(self, sess, tag, tid):
-        SessionElement.__init__(self, sess)
-        self.tag = tag
-        self.tid = tid
-    
-    def __repr__(self):
-        return '<ref %s %s#%x>' % (self.jni, chr(self.tag), self.tid)
-
-    @classmethod 
-    def unpackFrom(impl, sess, buf):
-        return sess.pool(impl, sess, buf.unpackU8(), buf.unpackTypeId())
-
-    def packTo(self, buf):
-        buf.packObjectId(self.tid)
-
-    def load_signature(self):
-        conn = self.conn
-        buf = conn.buffer()
-        self.packTo(buf)
-        code, buf = conn.request(0x020d, buf.data())
-        if code != 0:
-            raise RequestError(code)
-        self.jni = buf.unpackStr()
-        self.gen = buf.unpackStr()
-
-    gen = defer(load_signature, 'gen')
-    jni = defer(load_signature, 'jni')
-
 class Object(Value):
     def __init__(self, sess, oid):
         if oid == 0: raise VoidError()
@@ -761,7 +761,7 @@ class Object(Value):
         sess = self.sess
         conn = self.conn
         buf = conn.buffer()
-        buf.packTypeId(self.cid)
+        buf.packTypeId(self.oid)
         fields = list(f for f in self.fieldList if not f.static)
         buf.packInt(len(fields))
         for field in fields:
@@ -770,7 +770,7 @@ class Object(Value):
         if code != 0:
             raise RequestError(code)
         ct = buf.unpackInt()
-
+        vals = {}
         for x in range(ct):
             f = fields[x]
             vals[f.name] = unpack_value(sess, buf)
