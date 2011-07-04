@@ -93,6 +93,7 @@ def seq(*args):
     return args
 
 def adb(*args):
+    print adb, ' '.join(map(str, args))
     try:
         return sh(seq("adb", *args))
     except OSError as err:

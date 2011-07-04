@@ -52,6 +52,9 @@ IDSZ_REQ = (
 
 def forward(pid, dev=None):
     'constructs an adb forward for the context to access the pid via jdwp'
+    if dev:
+        dev = andbug.util.find_dev(dev)
+    pid = andbug.util.find_pid(pid)
     temp = tempfile.mktemp()
     cmd = ('-s', dev) if dev else ()
     cmd += ('forward', 'localfilesystem:' + temp,  'jdwp:%s' % pid)
