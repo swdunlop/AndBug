@@ -33,9 +33,13 @@ class Element(object):
     def __repr__(self):
         return '<%s>' % self
 
+    def __str__(self):
+        return '%s:%s' % (type(self).__name__, id(self))
+
 class SessionElement(Element):
     def __init__(self, sess):
         self.sess = sess
+
     @property
     def conn(self):
         return self.sess.conn
@@ -141,9 +145,6 @@ class Thread(SessionElement):
         SessionElement.__init__(self, sess)
         self.tid = tid
     
-    def __repr__(self):
-        return '<%s>' % self
-
     def __str__(self):
         return 'thread %s' % (self.name or hex(self.tid))
 
@@ -393,7 +394,10 @@ class RefType(SessionElement):
         self.tid = tid
     
     def __repr__(self):
-        return '<ref %s %s#%x>' % (self.jni, chr(self.tag), self.tid)
+        return '<type %s %s#%x>' % (self.jni, chr(self.tag), self.tid)
+
+    def __str__(self):
+        return repr(self)
 
     @classmethod 
     def unpackFrom(impl, sess, buf):
@@ -415,28 +419,6 @@ class RefType(SessionElement):
     gen = defer(load_signature, 'gen')
     jni = defer(load_signature, 'jni')
 
-                
-class Class(RefType): 
-    def __init__(self, sess, tid):
-        RefType.__init__(self, sess, tid)
-    
-    def __str__(self):
-        return self.name
-    
-    def __repr__(self):
-        return '<class %s>' % self
-
-    def hookEntries(self, func = None, queue = None):
-        conn = self.conn
-        buf = conn.buffer()
-        # 40:EK_METHOD_ENTRY, 1: SP_THREAD, 1 condition of type ClassRef (4)
-        buf.pack('11i1t', 40, 1, 1, 4, self.tid) 
-        code, buf = conn.request(0x0F01, buf.data())
-        if code != 0:
-            raise RequestError(code)
-        eid = buf.unpackInt()
-        return self.sess.hook(eid, func, queue)
-        
     def load_fields(self):
         sess = self.sess
         conn = self.conn
@@ -460,6 +442,7 @@ class Class(RefType):
         self.fieldList = andbug.data.view(
             load_field() for i in range(ct)
         )        
+
     fieldList = defer(load_fields, 'fieldList')
 
     @property
@@ -525,16 +508,6 @@ class Class(RefType):
     methodByJni = defer(load_methods, 'methodByJni')
     methodByName = defer(load_methods, 'methodByName')
 
-    def load_class(self):
-        self.sess.load_classes()
-        assert self.tag != None
-        assert self.flags != None
-
-    tag = defer(load_class, 'tag')
-    jni = defer(load_class, 'jni')
-    gen = defer(load_class, 'gen')
-    flags = defer(load_class, 'flags')
-
     def methods(self, name=None, jni=None):
         if name and jni:
             seq = self.methodByName[name]
@@ -554,6 +527,37 @@ class Class(RefType):
         if name.endswith(';'): name = name[:-1]
         name = name.replace('/', '.')
         return name
+
+class Class(RefType): 
+    def __init__(self, sess, tid):
+        RefType.__init__(self, sess, 'L', tid)
+        
+    def __str__(self):
+        return self.name
+    
+    def __repr__(self):
+        return '<class %s>' % self
+
+    def hookEntries(self, func = None, queue = None):
+        conn = self.conn
+        buf = conn.buffer()
+        # 40:EK_METHOD_ENTRY, 1: SP_THREAD, 1 condition of type ClassRef (4)
+        buf.pack('11i1t', 40, 1, 1, 4, self.tid) 
+        code, buf = conn.request(0x0F01, buf.data())
+        if code != 0:
+            raise RequestError(code)
+        eid = buf.unpackInt()
+        return self.sess.hook(eid, func, queue)
+        
+    #def load_class(self):
+    #   self.sess.load_classes()
+    #   assert self.tag != None
+    #   assert self.flags != None
+
+    #tag = defer(load_class, 'tag')
+    #jni = defer(load_class, 'jni')
+    #gen = defer(load_class, 'gen')
+    #flags = defer(load_class, 'flags')
 
 class Hook(SessionElement):
     def __init__(self, sess, ident, func = None, queue = None):
@@ -753,6 +757,11 @@ class Object(Value):
     refType = defer(load_refType, 'refType')
 
     @property
+    def fieldList(self):
+        r = list(f for f in self.refType.fieldList if not f.static)
+        return r
+
+    @property
     def typeTag(self):
         return self.refType.tag
 
@@ -762,11 +771,11 @@ class Object(Value):
         conn = self.conn
         buf = conn.buffer()
         buf.packTypeId(self.oid)
-        fields = list(f for f in self.fieldList if not f.static)
+        fields = self.fieldList
         buf.packInt(len(fields))
         for field in fields:
             buf.packFieldId(field.fid)
-        code, buf = conn.request(0x1001, buf.data())
+        code, buf = conn.request(0x0902, buf.data())
         if code != 0:
             raise RequestError(code)
         ct = buf.unpackInt()
