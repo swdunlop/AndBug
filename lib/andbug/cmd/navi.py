@@ -6,18 +6,15 @@
 ## TODO: add <array>/<index> browser.
 ## TODO: add close button to popouts
 ## TODO: add static class list
-## TODO: remove useless "masonry" class
 
-import andbug
+import andbug, os.path, cgi, json, subprocess, threading
+from urllib2 import quote as urlquote
 
 try:
     import bottle
 except ImportError:
     raise andbug.DependencyError('navi requires the "bottle" package')
     
-import andbug, os.path, cgi, json, subprocess
-from urllib2 import quote as urlquote
-
 ################################################################### UTILITIES
 # These functions make life a little easier, doing things like restructuring
 # data structures to be easier to use from templates.
@@ -134,30 +131,7 @@ NAVI_VERSION = 'AndBug Navi ' + NAVI_VERNO
 ################################################################# THREAD AXIS
 # The thread axis works from the process's thread list, digging into 
 # individual thread frames and their associated slots.
-#
-# >>> DEPRECATED <<<
 #############################################################################
-'''
-@bottle.route('/t')
-def list_threads():
-    'lists the threads in the virtual machine'
-    return bottle.template('threads', thread_index=thread_index)
-
-@bottle.route('/t/:tid')
-def list_threads(tid):
-    'lists the frames in the thread'
-    tid = int(tid)
-    frames = tuple(threads[tid].frames)
-    frame_index = tuple(index_seq(frames))
-    return bottle.template('frames', tid=tid, frame_index=frame_index)
-
-@bottle.route('/t/:tid/:fid')
-def list_values(tid, fid):
-    'lists the values in the frame'
-    tid, fid = int(tid), int(fid)
-    values = tuple(threads[tid].frames)[fid].values
-    return bottle.template('values', tid=tid, fid=fid, values=values)
-'''
 
 @bottle.route('/t/:tid/:fid/:key')
 @bottle.route('/t/:tid/:fid/:key/:path#.*#')
@@ -238,12 +212,22 @@ def navi_loop(p):
     bottle.run(
         host='localhost',
         port=8080,
-        reloader=False
+        reloader=False,
+        quiet=True
     )
+
+svr = None
 
 @andbug.command.action('')
 def navi(ctxt):
     'starts an http server for browsing process state'
-    andbug.screed.item('navigating process state at http://localhost:8080')
-    navi_loop(ctxt.sess)
+    global svr
+    if svr is not None:
+        andbug.screed.item('navigation process already running')
+        return
+    else:
+        andbug.screed.item('navigating process state at http://localhost:8080')
 
+    svr = threading.Thread(target=lambda: navi_loop(ctxt.sess))
+    svr.daemon = 1
+    svr.start()
