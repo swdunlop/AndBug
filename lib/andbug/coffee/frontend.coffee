@@ -87,11 +87,6 @@ show_thread = (t) ->
     t.find('.frame').show()
 
 $ -> 
-    #$('#container').masonry({
-    #    itemSelector : '.popout',
-    #    columnWidth : 200
-    #})
-    
     threads = eval($('#forest').text())    
     $('#threads').append(layout_thread t) for t in threads
     show_thread($('#threads').children().first())
@@ -103,5 +98,3 @@ $ ->
 
     $('.thread > h3').mouseenter (evt) -> 
         show_thread($(this).parent())
-
-    #$('.frame').click -> popout($(this).html())

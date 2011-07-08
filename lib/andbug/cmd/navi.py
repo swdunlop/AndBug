@@ -38,6 +38,9 @@ def frame_info(frame):
     return info[0 if (len(info) == 1) else 1]
 
 def truncate_ojni(jni):
+    if jni.startswith('['):
+        return truncate_ojni(jni[1:]) + '[]'
+
     if jni.startswith('L'): 
         jni = jni[1:]
         if jni.endswith(';'): jni = jni[:-1]
@@ -138,6 +141,8 @@ NAVI_VERSION = 'AndBug Navi ' + NAVI_VERNO
 def view_slot(tid, fid, key, path=None):
     'lists the values in the frame'
     tid, fid, key = int(tid), int(fid), str(key)
+    print repr(tid), repr(fid), repr(key), repr(path)
+
     value = tuple(threads[tid].frames)[fid].values.get(key)
     data = json.dumps(view(value))
     bottle.response.content_type = 'application/json'
