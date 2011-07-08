@@ -174,7 +174,7 @@ def bind_action(name, fn, aliases):
     for alias in aliases:
         ACTION_MAP[alias] = fn
 
-def action(usage, opts = (), proc = True, shell = None, aliases=()):
+def action(usage, opts = (), proc = True, shell = None, name = None, aliases=()):
     'decorates a command implementation with usage and argument information'
     def bind(fn):
         fn.proc = proc
@@ -188,7 +188,7 @@ def action(usage, opts = (), proc = True, shell = None, aliases=()):
         argct = len(spec.args) if spec.args else 0
         fn.min_arity = argct - defct
         fn.max_arity = argct
-        fn.name = fn.__name__.replace('_', '-')
+        fn.name = name or fn.__name__.replace('_', '-')
 
         bind_action(fn.name, fn, aliases)
     return bind
