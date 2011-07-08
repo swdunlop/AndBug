@@ -1,0 +1,69 @@
+* {
+    font-family: "droid sans mono", "consolas", "vera sans mono", "lucida console", monospace;
+}
+
+body {
+    margin: 0;
+    background: #222;
+}
+
+#threads {
+    width: 32em;
+    word-wrap: break-word;
+}
+ 
+#content {
+    position: absolute;
+    left: 32.5em;
+    top: .5em;
+    right: .5em;
+}
+.popout {
+    float: left;
+}
+.thread, .popout { 
+    border: thin solid #666;
+    background: #aaa;
+    margin: .5em;
+    background: #444;
+    color: #ddd;
+}
+
+.frame {
+    padding-left: 2em;
+}
+.native h3 {
+    font-style: italic;
+}
+.slots {
+    padding-left: 2em;
+    margin-bottom: 1em;
+}
+
+.thread > h3, .popout h3 {
+    padding: .25em;
+    background: #111;
+}
+
+h3 {
+    display: block;
+    margin: 0px;
+}
+a {
+    color: #999;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+td {
+    vertical-align: top;
+}
+.key {
+    text-align: right;
+}
+.val {
+    
+}
