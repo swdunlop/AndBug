@@ -229,5 +229,5 @@ def navi(ctxt):
         andbug.screed.item('navigating process state at http://localhost:8080')
 
     svr = threading.Thread(target=lambda: navi_loop(ctxt.sess))
-    svr.daemon = 1
+    svr.daemon = 1 if ctxt.shell else 0
     svr.start()
