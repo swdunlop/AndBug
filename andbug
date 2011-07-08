@@ -19,16 +19,15 @@ import andbug, sys, os, os.path
 import andbug.cmd, andbug.command
 import threading, traceback
     
-andbug.command.load_commands()
-
 def main(args):
     import atexit
     atexit.register(sys.stdout.write, '\x1B[0m\n')
+    andbug.command.load_commands()
 
     try:
         andbug.command.run_command(args)
         sys.exit(0)
-    except andbug.command.UserError as err:
+    except andbug.UserError as err:
         print '!! %s' % err
         sys.exit(-1)
     except Exception as exc:

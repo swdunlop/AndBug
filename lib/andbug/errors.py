@@ -12,6 +12,8 @@
 ## You should have received a copy of the GNU Lesser General Public License
 ## along with AndBug.  If not, see <http://www.gnu.org/licenses/>.
 
+import sys
+
 class UserError(Exception):
     'indicates an error in how AndBug was used'
     pass
@@ -22,6 +24,10 @@ class OptionError(UserError):
 
 class ConfigError(UserError):
     'indicates an error in the configuration of AndBug'
+    pass
+
+class DependencyError(UserError):
+    'indicates that an optional dependency was not found'
     pass
 
 def perr(*args):

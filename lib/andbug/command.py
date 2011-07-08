@@ -202,7 +202,10 @@ def load_commands():
             continue
         if name.endswith( '.py' ):
             name = 'andbug.cmd.' + name[:-3]
-            __import__( name )
+            try:
+                __import__( name )
+            except andbug.errors.DependencyError:
+                pass # okay, okay..
 
 def run_command(args, ctxt = None):
     'runs the specified command with a new context'

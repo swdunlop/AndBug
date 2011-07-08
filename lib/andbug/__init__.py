@@ -26,6 +26,9 @@ import andbug.log
 import andbug.command
 import andbug.vm
 import andbug.screed
+from andbug.errors import (
+    UserError, OptionError, ConfigError, DependencyError
+)
 
 ## andbug.command -- utilities for writing andbug commands
 from andbug.command import action
