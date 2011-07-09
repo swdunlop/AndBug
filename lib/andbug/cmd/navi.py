@@ -24,6 +24,15 @@ def index_seq(seq):
     for i in range(len(seq)):
         yield i, seq[i]
 
+def get_threads():
+    threads = proc.threads()[:] # TODO This workaround for view is vulgar.
+    threads.sort(lambda a, b: cmp(a.name, b.name))
+    return threads
+
+def get_classes():
+    classes = proc.classes()[:] # TODO This workaround for view is vulgar.
+    classes.sort(lambda a, b: cmp(a.jni, b.jni))
+
 ############################################################## INFO UTILITIES
 # These functions summarize various Java objects into human-readable 
 # representations.
@@ -72,6 +81,13 @@ def info(value):
 # suitable constructor, and a series of arguments for the constructor.
 #############################################################################
 
+def sequence_view(value):
+    seq = ['seq', value.jni]
+    for val in value:
+        seq.append(info(val))
+    return seq
+    #TODO: slots
+
 def object_view(value):
     seq = ['obj', value.jni]
     for key, val in value.fields.iteritems():
@@ -80,6 +96,8 @@ def object_view(value):
     #TODO: slots
 
 def view(value):
+    if isinstance(value, andbug.Array):
+        return sequence_view(value)
     if isinstance(value, andbug.Object):
         return object_view(value)
     return ['val', info(value)]
@@ -136,14 +154,50 @@ NAVI_VERSION = 'AndBug Navi ' + NAVI_VERNO
 # individual thread frames and their associated slots.
 #############################################################################
 
+def get_object_item(val, key):
+    try:
+        return val.fields[key]
+    except KeyError:
+        raise bottle.HTTPError(
+        code=404, output='object does not have field "%s".' % key
+    )
+
+def get_array_item(val, key):
+    key = int(key)
+
+    try:
+        return val[key]
+    except KeyError:
+        raise bottle.HTTPError(
+        code=404, output='array does not have index %s.' % key
+    )
+
+def get_item(val, key):
+    if isinstance(val, andbug.Array):
+        return get_array_item(val, key)
+        
+    if isinstance(val, andbug.Object):
+        return get_object_item(val, key)
+        
+    raise bottle.HTTPError(
+        code=404, output='cannot navigate type %s.' % type(val).__name__
+    )
+
 @bottle.route('/t/:tid/:fid/:key')
 @bottle.route('/t/:tid/:fid/:key/:path#.*#')
 def view_slot(tid, fid, key, path=None):
     'lists the values in the frame'
     tid, fid, key = int(tid), int(fid), str(key)
-    print repr(tid), repr(fid), repr(key), repr(path)
-
+    threads = get_threads()
     value = tuple(threads[tid].frames)[fid].values.get(key)
+    if path is not None:
+        path = path.split('/')
+
+    while path:
+        key = path[0]
+        path = path[1:]
+        value = get_item(value, key)
+
     data = json.dumps(view(value))
     bottle.response.content_type = 'application/json'
     return data
@@ -173,6 +227,7 @@ def seq_thread(thread, url):
     return seq
 
 def seq_process():            
+    threads = get_threads()
     return list(
         seq_thread(threads[i], '/t/%s/' % i) for i in range(len(threads))
     )
@@ -201,19 +256,10 @@ def frontend():
 
 def navi_loop(p):
     # Look, bottle makes me do sad things..
-    global proc, threads, classes
+    global proc
     proc = p
     
-    # We do not resume, because JDWP will do this automatically when we
-    # terminate.  (Thanks, Google.)
-    proc.suspend()
-
-    # We cache a sorted list of threads and classes for usability
-    threads = proc.threads()[:] # TODO This workaround for view is vulgar.
-    threads.sort(lambda a, b: cmp(a.name, b.name))
-    classes = proc.classes()[:] # TODO This workaround for view is vulgar.
-    classes.sort(lambda a, b: cmp(a.jni, b.jni))
-
+    bottle.debug(True)
     bottle.run(
         host='localhost',
         port=8080,
@@ -228,10 +274,15 @@ def navi(ctxt):
     'starts an http server for browsing process state'
     global svr
     if svr is not None:
-        andbug.screed.item('navigation process already running')
+        andbug.screed.section('navigation process already running')
         return
-    else:
-        andbug.screed.item('navigating process state at http://localhost:8080')
+
+    with andbug.screed.section(
+        'navigating process state at http://localhost:8080'
+    ):
+        andbug.screed.item('Process suspended for navigation.')
+        ctxt.sess.suspend()
+
 
     svr = threading.Thread(target=lambda: navi_loop(ctxt.sess))
     svr.daemon = 1 if ctxt.shell else 0

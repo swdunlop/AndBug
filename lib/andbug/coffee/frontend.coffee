@@ -29,11 +29,18 @@ layout_fjni = (fjni) ->
 layout_jni = (jni) ->
     $('<abbr>').text(crop_jni(jni)).attr('title', jni)
 
+sequence_view = (ref, jni, items ...) ->
+    div = $('<div>').append(
+        $('<h3>').append(layout_jni(jni))
+    )
+    div.append(layout_items(items, ref)) if items.length
+    return div
+
 object_view = (ref, jni, slots ...) ->
     div = $('<div>').append(
         $('<h3>').append(layout_jni(jni))
     )
-    div.append(layout_slots(slots)) if slots.length
+    div.append(layout_slots(slots, ref)) if slots.length
     return div
 
 value_view = (ref, data) ->
@@ -41,28 +48,52 @@ value_view = (ref, data) ->
 
 popout = (c) ->
     p = $('<div class="popout">').append(c)
-    $('#container').append(p)
+    $('#container').prepend(p)
 
 popout_view = (ref, data) ->
     view = switch data[0]
            when 'obj'
                object_view(ref, data[1..] ...)
+           when 'seq'
+               sequence_view(ref, data[1..] ...)
            else
                value_view(ref, data[1..] ...)
     popout(view)
 
+layout_value = (val, ref) ->
+    val = $('<span class="val">').text(val)
+    if ref
+        console.log(ref)
+        val = $('<a>').append(val)
+        val.click -> $.get(ref).success (data) -> popout_view(ref, data)
+    return val
+
 layout_slot = (l, base) ->
     key = $('<span class="key">').text(l[0])
     val = $('<span class="val">').text(l[1])
-    base = '' if not base
-    ref = l[2]
-    if ref
-        ref = base + ref
-        val = $('<a>').append(val)
-        val.click -> $.get(ref).success (data) -> popout_view(ref, data)
+    val = layout_value(l[1], base + l[2])
     return $('<div class="slot">').append(key).append("=").append(val)
 
+layout_items = (items, base) ->
+    if not base
+        base = ''
+    else if base.match(/[^\/]$/)
+        base = base + '/'
+
+    console.log(items)
+    slots = $('<div class="slots">')
+    sz = items.length
+    for ix in [0 .. sz]
+        slots.append(", ") if ix != 0
+        slots.append(layout_value(items[ix], base + ix))
+    return slots
+
 layout_slots = (s, base) ->
+    if not base
+        base = ''
+    else if base.match(/[^\/]$/)
+        base = base + '/'
+
     slots = $('<div class="slots">')
     slots.append(layout_slot(l, base)) for l in s
     return slots
