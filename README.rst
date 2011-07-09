@@ -62,6 +62,9 @@ A: Yes, but see the snarkiness about Windows users.  You didn't find this in an 
 
 A: Verify that your ADB setup is working using "adb devices" -- AndBug relies on ADB for a JDWP transport.
 
+Q: Navi gives me an RequestError 13.
+A: You have resumed the process; Navi can only safely interact with suspended processes.  Use "suspend" again.
+
 License
 -------
 
