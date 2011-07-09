@@ -19,12 +19,13 @@ import andbug.command, andbug.screed
 @andbug.command.action('[<name>]', shell=True)
 def suspend(ctxt, name=None):
     'suspends threads in the process'
-    ctxt.sess.suspend()
+    if name is None:
+        ctxt.sess.suspend()
+        return andbug.screed.section('Process Suspended')
+    elif name == '*':
+        name = None
 
     with andbug.screed.section('Suspending Threads'):
-        try:
-            for t in ctxt.sess.threads(name):
-                t.suspend()
-                andbug.screed.item('suspended %s' % t)
-        finally:
-            ctxt.sess.resume()
+        for t in ctxt.sess.threads(name):
+            t.suspend()
+            andbug.screed.item('suspended %s' % t)

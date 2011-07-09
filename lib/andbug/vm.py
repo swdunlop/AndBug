@@ -683,6 +683,12 @@ class Session(object):
         if code != 0:
             raise RequestError(code)
 
+    @property
+    def count(self):
+        code, buf = self.conn.request(0x0108, '')
+        if code != 0:
+            raise RequestError(code)
+
     def resume(self):
         code, buf = self.conn.request(0x0109, '')
         if code != 0:
@@ -833,9 +839,13 @@ class Array(Object):
         if last > length:
             raise IndexError('last offset (%s) past length of array' % last)
         if first < 0:
-            first = length + first
+            first = length + first + 1
+            if first < 0:
+                raise IndexError('first absolute (%s) past length of array' % first)
         if last < 0:
-            last = length + last
+            last = length + last + 1
+            if last < 0:
+                raise IndexError('last absolute (%s) past length of array' % last)
         if first > last:
             first, last = last, first
         

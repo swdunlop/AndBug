@@ -19,12 +19,13 @@ import andbug.command, andbug.screed
 @andbug.command.action('[<name>]', shell=True)
 def resume(ctxt, name=None):
     'resumes threads in the process'
-    ctxt.sess.resume()
+    if name is None:
+        ctxt.sess.resume()
+        return andbug.screed.section('Process Resumed')
+    elif name == '*':
+        name = None
 
     with andbug.screed.section('Resuming Threads'):
-        try:
-            for t in ctxt.sess.threads(name):
-                t.resume()
-                andbug.screed.item('resumed %s' % t)
-        finally:
-            ctxt.sess.resume()
+        for t in ctxt.sess.threads(name):
+            t.resume()
+            andbug.screed.item('resumed %s' % t)
