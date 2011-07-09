@@ -19,7 +19,8 @@ from Queue import Queue
 
 def report_hit(t):
     t = t[0]
-    with andbug.screed.section("breakpoint hit in %s" % t):
+    with andbug.screed.section("Breakpoint hit in %s, process suspended." % t):
+        t.sess.suspend()
         for f in t.frames:
             name = str(f.loc)
             if f.native:
@@ -48,7 +49,6 @@ def cmd_break(ctxt, cpath, mquery=None):
     'suspends the process when a method is called'
     cpath, mname, mjni = andbug.options.parse_mquery(cpath, mquery)
 
-    print cpath, mname, mjni
     with andbug.screed.section('Setting Hooks'):
         if mname is None:
             cmd_break_classes(ctxt, cpath)
