@@ -38,6 +38,6 @@ from andbug.command import action
 
 ## andbug.vm -- abstraction of the virtual machine model
 from andbug.vm import (
-    Element, Session, Frame, Object, String, Method, RefType, Slot, 
+    Element, Session, Frame, Array, Object, String, Method, RefType, Slot, 
     Thread, Hook, Location, Class, connect
 )
