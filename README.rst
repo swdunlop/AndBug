@@ -49,21 +49,29 @@ Common Problems
 ---------------
 
 Q: I get "Permission Denied" when trying to use AndBug, but "adb shell" works.
+
 A: Your adbd is probably running as another user, blocking the effective use of ADB forward.  Use "adb kill-server" then "adb start-server" with the correct effective user.
 
 Q: I get "Shell Exception" when trying to use AndBug.
+
 A: Verify that your ADB setup is working using "adb devices" -- AndBug relies on ADB for a JDWP transport.
 
 Q: Does AndBug work on Windows?
+
 A: I think so; but since AndBug is unsupported software, you may experience less hand holding than Windows users are accustomed to.  Patches are welcome.
 
 Q: Does AndBug work on Mac OS X?
+
 A: Yes, but see the snarkiness about Windows users.  You didn't find this in an app store..
 
-A: Verify that your ADB setup is working using "adb devices" -- AndBug relies on ADB for a JDWP transport.
-
 Q: Navi gives me an RequestError 13.
+
 A: You have resumed the process; Navi can only safely interact with suspended processes.  Use "suspend" again.
+
+Branches
+--------
+
+Since AndBug is currently where we (IOActive) offer our own internal tools and tricks to the public, the release cycle is tightly coupled to conferences and presentations.  Branches are created for each conference, and offer stable releases where the tools are expected to be reasonable and usable due to our use of live demos.
 
 License
 -------
