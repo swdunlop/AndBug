@@ -26,7 +26,13 @@ def index_seq(seq):
 
 def get_threads():
     threads = proc.threads()[:] # TODO This workaround for view is vulgar.
-    threads.sort(lambda a, b: cmp(a.name, b.name))
+    def tin(name):
+        try:
+            return int(name.split('<')[1].split('>')[0])
+        except:
+            return name
+
+    threads.sort(lambda a, b: cmp(tin(a.name), tin(b.name)))
     return threads
 
 def get_classes():
@@ -71,6 +77,9 @@ def info(value):
         return thread_info(value)
     if isinstance(value, andbug.Frame):
         return frame_info(value)
+    if isinstance(value, andbug.Array):
+        if value.jni in ('[C', '[B'):
+            return repr(value).replace('\\x00', '') # HACK
     if isinstance(value, andbug.Object):
         return object_info(value)
     return str(value)

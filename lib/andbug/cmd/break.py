@@ -29,13 +29,13 @@ def report_hit(t):
 
 def cmd_break_methods(ctxt, cpath, mpath):
     for c in ctxt.sess.classes(cpath):
-        for m in ctxt.sess.methods(mpath):
+        for m in c.methods(mpath):
             l = m.firstLoc
             if l.native:
-                andbug.screed.item('Could not hook native %s' % loc)
+                andbug.screed.item('Could not hook native %s' % l)
                 continue
             l.hook(func = report_hit)
-            andbug.screed.item('Hooked %s' % loc)
+            andbug.screed.item('Hooked %s' % l)
 
 def cmd_break_classes(ctxt, cpath):
     for c in ctxt.sess.classes(cpath):
@@ -53,6 +53,6 @@ def cmd_break(ctxt, cpath, mquery=None):
         if mname is None:
             cmd_break_classes(ctxt, cpath)
         else:
-            cmd_break_methods(ctxt, cpath, mname, mjni)
+            cmd_break_methods(ctxt, cpath, mname)
 
     ctxt.block_exit()

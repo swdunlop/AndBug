@@ -17,10 +17,17 @@
 import andbug.command, andbug.screed
 
 @andbug.command.action('')
-def classes(ctxt):
+def classes(ctxt, expr=None):
     'lists loaded classes'
     with andbug.screed.section('Loaded Classes'):
 	    for c in ctxt.sess.classes():
 	        n = c.jni
 	        if n.startswith('L') and n.endswith(';'):
-	            andbug.screed.item(n[1:-1].replace('/', '.'))
+                    n = n[1:-1].replace('/', '.')
+                else:
+                    continue
+
+                if expr is not None:
+                    if n.find(expr) >= 0:
+                        andbug.screed.item(n)
+
