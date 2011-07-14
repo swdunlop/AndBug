@@ -76,7 +76,7 @@ Since AndBug is currently where we (IOActive) offer our own internal tools and t
 License
 -------
 
-Copyright 2011, Scott W. Dunlop <swdunlop@gmail.com> All rights reserved.
+Copyright 2011, IOActive All rights reserved.
 
 AndBug is free software: you can redistribute it and/or modify it under 
 the terms of version 3 of the GNU Lesser General Public License as 

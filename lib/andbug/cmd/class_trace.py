@@ -1,4 +1,4 @@
-## Copyright 2011, Scott W. Dunlop <swdunlop@gmail.com> All rights reserved.
+## Copyright 2011, IOActive, Inc. All rights reserved.
 ##
 ## AndBug is free software: you can redistribute it and/or modify it under 
 ## the terms of version 3 of the GNU Lesser General Public License as 
