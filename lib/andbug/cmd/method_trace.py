@@ -21,13 +21,13 @@ def report_hit(t):
     t = t[0]
     try:
         with andbug.screed.section("trace %s" % t):
-            for f in t.frames:
-                name = str(f.loc)
-                if f.native:
-                    name += ' <native>'
-                with andbug.screed.item(name):
-                    for k, v in f.values.items():
-                        andbug.screed.item( "%s=%s" %(k, v))
+            f = t.frames[0]
+            name = str(f.loc)
+            if f.native:
+            	name += ' <native>'
+            with andbug.screed.item(name):
+            	for k, v in f.values.items():
+                	andbug.screed.item( "%s=%s" %(k, v))
     finally:
         t.resume()
 
@@ -47,7 +47,7 @@ def cmd_hook_methods(ctxt, cpath, mpath):
 def method_trace(ctxt, mpath):
     'reports calls to specific dalvik method'
 	
-    cpath, mname, mjni = andbug.options.parse_mquery(mpath,  mpath.split('.')[-1])
+    cpath, mname, mjni = andbug.options.parse_mquery(".".join(mpath.split('.')[0:-1]),  mpath.split('.')[-1])
 
     with andbug.screed.section('Setting Hooks'):
 		cmd_hook_methods(ctxt, cpath, mname)
