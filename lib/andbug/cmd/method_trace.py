@@ -12,22 +12,26 @@
 ## You should have received a copy of the GNU Lesser General Public License
 ## along with AndBug.  If not, see <http://www.gnu.org/licenses/>.
 
-'implementation of the "break" command'
+'implementation of the "mtrace" command'
 
 import andbug.command, andbug.screed, andbug.options
 from Queue import Queue
 
 def report_hit(t):
     t = t[0]
-    with andbug.screed.section("Breakpoint hit in %s, process suspended." % t):
-        t.sess.suspend()
-        for f in t.frames:
+    try:
+        with andbug.screed.section("trace %s" % t):
+            f = t.frames[0]
             name = str(f.loc)
             if f.native:
-                name += ' <native>'
-            andbug.screed.item(name)
+            	name += ' <native>'
+            with andbug.screed.item(name):
+            	for k, v in f.values.items():
+                	andbug.screed.item( "%s=%s" %(k, v))
+    finally:
+        t.resume()
 
-def cmd_break_methods(ctxt, cpath, mpath):
+def cmd_hook_methods(ctxt, cpath, mpath):
     for c in ctxt.sess.classes(cpath):
         for m in c.methods(mpath):
             l = m.firstLoc
@@ -37,22 +41,15 @@ def cmd_break_methods(ctxt, cpath, mpath):
             l.hook(func = report_hit)
             andbug.screed.item('Hooked %s' % l)
 
-def cmd_break_classes(ctxt, cpath):
-    for c in ctxt.sess.classes(cpath):
-        c.hookEntries(func = report_hit)
-        andbug.screed.item('Hooked %s' % c)
-
 @andbug.command.action(
-    '<class> [<method>]', name='break', aliases=('b',), shell=True
+    '<method>', name='method-trace', aliases=('mt','mtrace'), shell=True
 )
-def cmd_break(ctxt, cpath, mquery=None):
-    'suspends the process when a method is called'
-    cpath, mname, mjni = andbug.options.parse_mquery(cpath, mquery)
+def method_trace(ctxt, mpath):
+    'reports calls to specific dalvik method'
+	
+    cpath, mname, mjni = andbug.options.parse_mquery(".".join(mpath.split('.')[0:-1]),  mpath.split('.')[-1])
 
     with andbug.screed.section('Setting Hooks'):
-        if mname is None:
-            cmd_break_classes(ctxt, cpath)
-        else:
-            cmd_break_methods(ctxt, cpath, mname)
+		cmd_hook_methods(ctxt, cpath, mname)
 
     ctxt.block_exit()
