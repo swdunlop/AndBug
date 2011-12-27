@@ -6,8 +6,6 @@ AndBug is a debugger targeting the Android platform's Dalvik virtual machine int
 
 Unlike Google's own Android Software Development Kit debugging tools, AndBug does not require or expect source code.  It does, however, require that you have some level of comfort with Python, as it uses a concept of scripted breakpoints, called "hooks", for most nontrivial tasks.  (If you just want to dump loaded classes, methods, or threads, there are example scripts for that.)
 
-At IOActive, I use AndBug and tools like it every day to study the Android platform and understand customer applications.  It is a living tool which has lead to discovering a number of vulnerabilities by chasing process flow across the system and exposing how weak the Android process isolation model really is, once you get under the hood.  I hope you enjoy it, and welcome any improvements or suggestions.
-
 -- Scott Dunlop <swdunlop@gmail.com>
 
 Installation
@@ -68,10 +66,9 @@ Q: Navi gives me an RequestError 13.
 
 A: You have resumed the process; Navi can only safely interact with suspended processes.  Use "suspend" again.
 
-Branches
---------
+Q: I get "EOF in read" when sending a commmand.
 
-Since AndBug is currently where we (IOActive) offer our own internal tools and tricks to the public, the release cycle is tightly coupled to conferences and presentations.  Branches are created for each conference, and offer stable releases where the tools are expected to be reasonable and usable due to our use of live demos.
+A: Ensure that no other debuggers are connected, such as DDMS.
 
 License
 -------
