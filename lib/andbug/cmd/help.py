@@ -54,8 +54,13 @@ CAUTION = '''
     made or implied.'''
 
 SHELL_EXAMPLES = (
+    'threads',
+    'threads verbose=2',
+    'threads "Signal Catcher" verbose=3',
     'classes',
-    'methods com.ioactive.decoy.DecoyActivity onInit'
+    'classes ioactive',
+    'methods com.ioactive.decoy.DecoyActivity onInit',
+    'method-trace com.ioactive.decoy.DecoyActivity'
 )
 
 CLI_EXAMPLES = (
