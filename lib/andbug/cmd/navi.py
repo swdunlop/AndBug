@@ -9,6 +9,7 @@
 
 import andbug, os.path, cgi, json, subprocess, threading
 from urllib2 import quote as urlquote
+import re
 
 try:
     import bottle
@@ -28,7 +29,7 @@ def get_threads():
     threads = proc.threads()[:] # TODO This workaround for view is vulgar.
     def tin(name):
         try:
-            return int(name.split('<')[1].split('>')[0])
+            return int(re.split('<|>', name)[1])
         except:
             return name
 
