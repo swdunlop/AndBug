@@ -22,12 +22,24 @@ BANNER = 'AndBug (C) 2011 Scott W. Dunlop <swdunlop@gmail.com>'
 def input():
     return raw_input('>> ')
 
+def completer(text, state):
+    available_commands = andbug.command.ACTION_MAP.keys()
+    options = [x for x in available_commands if x.startswith(text)]
+    try:
+        return options[state]
+    except IndexError:
+        return None
+
+
 @andbug.command.action('')
 def shell(ctxt):
     'starts the andbug shell with the specified process'
     if not ctxt.shell:
         try:
             import readline
+            readline.set_completer(completer)
+            readline.parse_and_bind("tab: complete")
+
         except:
             readline = None
         ctxt.shell = True

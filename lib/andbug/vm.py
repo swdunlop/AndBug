@@ -22,6 +22,12 @@ from Queue import Queue
 ## -- unpackFrom methods are used to unpack references to an element from
 ##    a JDWP buffer.  This does not mean unpacking the actual definition of
 ##    the element, which tends to be one-shot.
+## References:
+## -- All codes that are sent to Dalvik VM where extracted from
+##    dalvik/vm/jdwp/JdwpHandler.cpp and converted to HEX values
+##    (e.g. Resume Thread: {11, 3, ....} => 0B03)
+## -- JDWP Protocol:
+##    http://docs.oracle.com/javase/1.4.2/docs/guide/jpda/jdwp/jdwp-protocol.html
 
 class RequestError(Exception):
     'raised when a request for more information from the process fails'
@@ -176,7 +182,7 @@ class Thread(SessionElement):
         if code != 0:
             raise RequestError(code)
         eid = buf.unpackInt()
-        return self.sess.hook(eid, func, queue)
+        return self.sess.hook(eid, func, queue, self)
 
     @classmethod
     def unpackFrom(impl, sess, buf):
@@ -257,8 +263,8 @@ class Location(SessionElement):
         if code != 0:
             raise RequestError(code)
         eid = buf.unpackInt()
-        return self.sess.hook(eid, func, queue)
-    
+        return self.sess.hook(eid, func, queue, self)
+
     @property
     def native(self):
         return self.loc == -1
@@ -558,7 +564,7 @@ class Class(RefType):
         if code != 0:
             raise RequestError(code)
         eid = buf.unpackInt()
-        return self.sess.hook(eid, func, queue)
+        return self.sess.hook(eid, func, queue, self)
         
     #def load_class(self):
     #   self.sess.load_classes()
@@ -571,18 +577,23 @@ class Class(RefType):
     #flags = defer(load_class, 'flags')
 
 class Hook(SessionElement):
-    def __init__(self, sess, ident, func = None, queue = None):
+    def __init__(self, sess, ident, func = None, queue = None, origin = None):
         SessionElement.__init__(self, sess)
         if queue is not None:
             self.queue = queue
         elif func is None:
             self.queue = queue or Queue()
         self.func = func        
-                                    
+
         self.ident = ident
+        self.origin = origin
         #TODO: unclean
         with self.sess.ectl:
             self.sess.emap[ident] = self
+
+    def __str__(self):
+        return ('<%s> %s %s' %
+            (str(self.ident), str(self.origin), str(type(self.origin))))
 
     def put(self, data):
         if self.func is not None:
@@ -595,9 +606,18 @@ class Hook(SessionElement):
 
     def clear(self):
         #TODO: unclean
-        #TODO: EventRequest.Clear
+        conn = self.conn
+        buf = conn.buffer()
+        # 40:EK_METHOD_ENTRY
+        buf.pack('1i', 40, int(self.ident))
+        # 0x0F02 = {15, 2} EventRequest.Clear
+        code, unknown = conn.request(0x0F02, buf.data())
+        # fixme: check what a hell is the value stored in unknown
+        if code != 0:
+            raise RequestError(code)
+
         with self.sess.ectl:
-            del self.sess.emap[ident]
+            del self.sess.emap[self.ident]
 
 unpack_impl = [None,] * 256
 
@@ -640,8 +660,8 @@ class Session(object):
         while True:
             self.processEvent(*self.evtq.get())
 
-    def hook(self, ident, func = None, queue = None):
-        return Hook(self, ident, func, queue)
+    def hook(self, ident, func = None, queue = None, origin = None):
+        return Hook(self, ident, func, queue, origin)
 
     def processEvent(self, ident, buf):
         pol, ct = buf.unpack('1i')
@@ -743,6 +763,11 @@ class Object(Value):
     def __repr__(self):
         return '<obj %s #%x>' % (self.jni, self.oid)
     
+#    def __str__(self):
+#        return str(self.fields.values())
+    def __str__(self):
+        return str("%s <%s>" % (str(self.jni), str(self.oid)))
+        
     @classmethod
     def unpackFrom(impl, sess, buf):
         oid = buf.unpackObjectId()
@@ -833,6 +858,9 @@ class Array(Object):
     
     def __iter__(self): return iter(self.getSlice())
 
+    def __str__(self):
+        return str(self.getSlice())
+        
     @property
     def length(self):
         conn = self.conn

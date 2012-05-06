@@ -16,9 +16,9 @@
 
 import andbug.command, andbug.screed
 
-@andbug.command.action('')
+@andbug.command.action('[<partial class name>]')
 def classes(ctxt, expr=None):
-    'lists loaded classes'
+    'lists loaded classes. if no partial class name supplied, list all classes.'
     with andbug.screed.section('Loaded Classes'):
 	    for c in ctxt.sess.classes():
 	        n = c.jni
@@ -30,4 +30,6 @@ def classes(ctxt, expr=None):
                 if expr is not None:
                     if n.find(expr) >= 0:
                         andbug.screed.item(n)
+                else:
+                    andbug.screed.item(n)
 

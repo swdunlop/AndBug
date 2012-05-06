@@ -16,6 +16,7 @@
 
 import andbug.command, andbug.screed, andbug.options
 from Queue import Queue
+import re
 
 def report_hit(t):
     t = t[0]
