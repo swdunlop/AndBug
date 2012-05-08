@@ -34,13 +34,13 @@ def cmd_break_methods(ctxt, cpath, mpath):
             if l.native:
                 andbug.screed.item('Could not hook native %s' % l)
                 continue
-            l.hook(func = report_hit)
-            andbug.screed.item('Hooked %s' % l)
+            h = l.hook(func = report_hit)
+            andbug.screed.item('Hooked %s' % h)
 
 def cmd_break_classes(ctxt, cpath):
     for c in ctxt.sess.classes(cpath):
-        c.hookEntries(func = report_hit)
-        andbug.screed.item('Hooked %s' % c)
+        h = c.hookEntries(func = report_hit)
+        andbug.screed.item('Hooked %s' % h)
 
 @andbug.command.action(
     '<class> [<method>]', name='break', aliases=('b',), shell=True
