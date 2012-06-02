@@ -152,7 +152,8 @@ class Thread(SessionElement):
         self.tid = tid
     
     def __str__(self):
-        return 'thread %s' % (self.name or hex(self.tid))
+        tStatus, sStatus = self.status
+        return 'thread %s\t(%s %s)' % (self.name or hex(self.tid), Thread.threadStatusStr(tStatus), Thread.suspendStatusStr(sStatus))
 
     def suspend(self):  
         conn = self.conn
