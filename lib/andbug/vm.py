@@ -229,6 +229,36 @@ class Thread(SessionElement):
             raise RequestError(code)
         return buf.unpackStr()
 
+    @property
+    def status(self):
+        conn = self.conn
+        buf = conn.buffer()
+        buf.pack('o', self.tid)
+        code, buf = conn.request(0x0B04, buf.data())
+        if code != 0:
+            raise RequestError(code)
+
+        threadStatus = buf.unpackInt()
+        suspendStatus = buf.unpackInt()
+
+        return threadStatus, suspendStatus
+
+    @staticmethod
+    def threadStatusStr(tStatus):
+        szTS = ('zombie', 'running', 'sleeping', 'monitor', 'waiting', 'initializing', 'starting', 'native', 'vmwait')
+        tStatus = int(tStatus)
+        if tStatus < 0 or tStatus >= len(szTS):
+            return "UNKNOWN"
+        return szTS[tStatus]
+
+    @staticmethod
+    def suspendStatusStr(sStatus):
+        szSS = ('running', 'suspended')
+        sStatus = int(sStatus)
+        if sStatus < 0 or sStatus >= len(szSS):
+            return "UNKNOWN"
+        return szSS[sStatus]
+
 class Location(SessionElement):
     def __init__(self, sess, tid, mid, loc):
         SessionElement.__init__(self, sess)
