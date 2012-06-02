@@ -264,36 +264,38 @@ def frontend():
 # on Bottle, so this could be decoupled and put under WSGIREF.
 #############################################################################
 
-def navi_loop(p):
+def navi_loop(p, address, port):
     # Look, bottle makes me do sad things..
     global proc
     proc = p
     
     bottle.debug(True)
     bottle.run(
-        host='localhost',
-        port=8080,
+        host=address,
+        port=port,
         reloader=False,
         quiet=True
     )
 
 svr = None
 
-@andbug.command.action('')
-def navi(ctxt):
+@andbug.command.action('[allowRemote=<False or anychar>] [port=<8080>]')
+def navi(ctxt, allowRemote = False, port = None):
     'starts an http server for browsing process state'
     global svr
     if svr is not None:
         andbug.screed.section('navigation process already running')
         return
 
+    address = '0.0.0.0' if allowRemote else 'localhost'
+    port = int(port) if port else 8080
+
     with andbug.screed.section(
-        'navigating process state at http://localhost:8080'
+        'navigating process state at http://localhost:%i' % port
     ):
         andbug.screed.item('Process suspended for navigation.')
         ctxt.sess.suspend()
 
-
-    svr = threading.Thread(target=lambda: navi_loop(ctxt.sess))
+    svr = threading.Thread(target=lambda: navi_loop(ctxt.sess, address, port))
     svr.daemon = 1 if ctxt.shell else 0
     svr.start()
