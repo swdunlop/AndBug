@@ -12,7 +12,7 @@
 ## You should have received a copy of the GNU Lesser General Public License
 ## along with AndBug.  If not, see <http://www.gnu.org/licenses/>.
 
-import andbug, andbug.data, andbug.proto
+import andbug, andbug.data, andbug.proto, andbug.errors
 import threading, re
 from andbug.data import defer
 from threading import Lock
@@ -25,8 +25,9 @@ from Queue import Queue
 ## References:
 ## -- All codes that are sent to Dalvik VM where extracted from
 ##    dalvik/vm/jdwp/JdwpHandler.cpp and converted to HEX values
-##    (e.g. Resume Thread: {11, 3, ....} => 0B03)
+##    (e.g. Resume Thread: {11, 3, ....} => 0b03)
 ## -- JDWP Protocol:
+##    the set of functions defined, here, overlap those provided by dalvik
 ##    http://docs.oracle.com/javase/1.4.2/docs/guide/jpda/jdwp/jdwp-protocol.html
 
 class RequestError(Exception):
@@ -159,15 +160,15 @@ class Thread(SessionElement):
         conn = self.conn
         buf = conn.buffer()
         buf.packObjectId(self.tid)
-        code, buf = conn.request(0x0B01, buf.data())
+        code, buf = conn.request(0x0b02, buf.data())
         if code != 0:
             raise RequestError(code)
 
     def resume(self):
         conn = self.conn
         buf = conn.buffer()
-        buf.pack('o', self.tid)
-        code, buf = conn.request(0x0B03, buf.data())
+        buf.packObjectId(self.tid)
+        code, buf = conn.request(0x0b03, buf.data())
         if code != 0:
             raise RequestError(code)
 
@@ -179,7 +180,7 @@ class Thread(SessionElement):
         buf = conn.buffer()
         # 40:EK_METHOD_ENTRY, 1: SP_THREAD, 1 condition of type ClassRef (3), ThreadId
         buf.pack('11i1t', 40, 1, 1, 3, self.tid) 
-        code, buf = conn.request(0x0F01, buf.data())
+        code, buf = conn.request(0x0f01, buf.data())
         if code != 0:
             raise RequestError(code)
         eid = buf.unpackInt()
@@ -197,7 +198,7 @@ class Thread(SessionElement):
         conn = self.conn
         buf = conn.buffer()
         buf.pack('oii', self.tid, 0, -1)
-        code, buf = conn.request(0x0B06, buf.data())
+        code, buf = conn.request(0x0b06, buf.data())
         if code != 0:
             raise RequestError(code)
         ct = buf.unpackInt()
@@ -215,7 +216,7 @@ class Thread(SessionElement):
         conn = self.conn
         buf = conn.buffer()
         buf.packObjectId(self.tid)
-        code, buf = conn.request(0x0B07, buf.data())
+        code, buf = conn.request(0x0b07, buf.data())
         if code != 0:
             raise RequestError(code)
         return buf.unpackInt()
@@ -225,7 +226,7 @@ class Thread(SessionElement):
         conn = self.conn
         buf = conn.buffer()
         buf.packObjectId(self.tid)
-        code, buf = conn.request(0x0B01, buf.data())
+        code, buf = conn.request(0x0b01, buf.data())
         if code != 0:
             raise RequestError(code)
         return buf.unpackStr()
@@ -234,8 +235,8 @@ class Thread(SessionElement):
     def status(self):
         conn = self.conn
         buf = conn.buffer()
-        buf.pack('o', self.tid)
-        code, buf = conn.request(0x0B04, buf.data())
+        buf.packObjectId(self.tid)
+        code, buf = conn.request(0x0b04, buf.data())
         if code != 0:
             raise RequestError(code)
 
@@ -290,7 +291,7 @@ class Location(SessionElement):
         buf.pack('11i1', 40, 1, 1, 7) 
 
         self.packTo(buf)
-        code, buf = conn.request(0x0F01, buf.data())
+        code, buf = conn.request(0x0f01, buf.data())
         if code != 0:
             raise RequestError(code)
         eid = buf.unpackInt()
@@ -334,7 +335,7 @@ class Slot(SessionElement):
             return 'slot at index %i' % (self.index)
 
     def load_slot(self):
-        self.sess.pool(Class, self.sess, tid).load_slots()
+        self.sess.pool(Class, self.sess, self.tid).load_slots()
 
     firstLoc = defer(load_slot, 'firstLoc')
     locLength = defer(load_slot, 'locLength')
@@ -414,6 +415,7 @@ class Method(SessionElement):
         tid = self.tid
         mid = self.mid
         data = conn.buffer().pack('om', tid, mid)
+        # NOTE: this is defined in jdwpHandler.cpp, but not jdwp 1.4.2
         code, buf = conn.request(0x0605, data)
         if code != 0: raise RequestError(code)
     
@@ -458,6 +460,7 @@ class RefType(SessionElement):
         conn = self.conn
         buf = conn.buffer()
         self.packTo(buf)
+        # NOTE: this is defined in jdwpHandler.cpp, but not jdwp 1.4.2
         code, buf = conn.request(0x020d, buf.data())
         if code != 0:
             raise RequestError(code)
@@ -472,7 +475,8 @@ class RefType(SessionElement):
         conn = self.conn
         buf = conn.buffer()
         buf.pack("t", self.tid)
-        code, buf = conn.request(0x020E, buf.data())
+        # NOTE: this is defined in jdwpHandler.cpp, but not jdwp 1.4.2
+        code, buf = conn.request(0x020e, buf.data())
         if code != 0:
             raise RequestError(code)
 
@@ -503,6 +507,7 @@ class RefType(SessionElement):
         buf.packInt(len(fields))
         for field in fields:
             buf.packFieldId(field.fid)
+        # NOTE: this is defined in jdwpHandler.cpp, but not jdwp 1.4.2
         code, buf = conn.request(0x0206, buf.data())
         if code != 0:
             raise RequestError(code)
@@ -521,7 +526,8 @@ class RefType(SessionElement):
         pool = sess.pool
         buf = conn.buffer()
         buf.pack("t", tid)
-        code, buf = conn.request(0x020F, buf.data())
+        # NOTE: this is defined in jdwpHandler.cpp, but not jdwp 1.4.2
+        code, buf = conn.request(0x020f, buf.data())
         if code != 0:
             raise RequestError(code)
 
@@ -591,7 +597,7 @@ class Class(RefType):
         buf = conn.buffer()
         # 40:EK_METHOD_ENTRY, 1: SP_THREAD, 1 condition of type ClassRef (4)
         buf.pack('11i1t', 40, 1, 1, 4, self.tid) 
-        code, buf = conn.request(0x0F01, buf.data())
+        code, buf = conn.request(0x0f01, buf.data())
         if code != 0:
             raise RequestError(code)
         eid = buf.unpackInt()
@@ -641,8 +647,8 @@ class Hook(SessionElement):
         buf = conn.buffer()
         # 40:EK_METHOD_ENTRY
         buf.pack('1i', 40, int(self.ident))
-        # 0x0F02 = {15, 2} EventRequest.Clear
-        code, unknown = conn.request(0x0F02, buf.data())
+        # 0x0f02 = {15, 2} EventRequest.Clear
+        code, unknown = conn.request(0x0f02, buf.data())
         # fixme: check what a hell is the value stored in unknown
         if code != 0:
             raise RequestError(code)
@@ -787,7 +793,7 @@ rx_dalvik_tname = re.compile('^<[0-9]+> .*$')
 
 class Object(Value):
     def __init__(self, sess, oid):
-        if oid == 0: raise VoidError()
+        if oid == 0: raise andbug.errors.VoidError()
         SessionElement.__init__(self, sess)
         self.oid = oid
 

@@ -17,7 +17,7 @@
 
 import andbug, sys, os, os.path
 import andbug.cmd, andbug.command
-import threading, traceback
+import traceback
     
 def main(args):
     import atexit

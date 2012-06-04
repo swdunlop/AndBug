@@ -30,6 +30,9 @@ class DependencyError(UserError):
     'indicates that an optional dependency was not found'
     pass
 
+class VoidError(UserError):
+    'indicates a process returned a nil object'
+
 def perr(*args):
     print >>sys.stderr, ' '.join(map(str, args))
 

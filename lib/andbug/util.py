@@ -23,12 +23,10 @@
 ## ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
 ## POSSIBILITY OF SUCH DAMAGE.
 
-import subprocess, threading, os, os.path
+import subprocess, os, os.path
 import re
 from andbug.errors import *
 RE_INT = re.compile('^[0-9]+$')
-
-from cStringIO import StringIO
 
 class ShellException( Exception ):
     def __init__( self, command, output, status ):
@@ -96,7 +94,7 @@ def adb(*args):
     #print adb, ' '.join(map(str, args))
     try:
         return sh(seq("adb", *args))
-    except OSError as err:
+    except OSError:
         raise ConfigError('could not find "adb" from the Android SDK in your PATH')
 
 def find_dev(dev=None):

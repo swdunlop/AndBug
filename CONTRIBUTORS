@@ -1,12 +1,14 @@
-Special Thanks go to the creator and brain behind this project:
+Thanks go to the following people for patches and contributions:
   
   Scott W. Dunlop <swdunlop@gmail.com>
     Creator and developer of AndBug.
 
-Thanks go to the following people for patches and contributions:
-  
   Matias Pablo Brutti <matiasbrutti@gmail.com>
     Only a few touches here and there.
 
   Felipe Barriga Richards <spam@felipebarriga.cl>
     Inspect command, improved Classes command, hook origins, break-list command.
+
+  CzBix <https://github.com/czbix>
+    Non-localhost Navi, better thread status, found thread.suspend bug
+

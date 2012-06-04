@@ -144,6 +144,7 @@ def info(tag, meta, data = None):
 def read_log(path=None, file=None):
     if path is None:
         if file is None:
-            reader = stdin
-        else:
             reader = LogReader(sys.stdin)
+        else:
+            reader = LogReader(file)
+    return reader
