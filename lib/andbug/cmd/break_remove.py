@@ -17,16 +17,22 @@
 
 import andbug.command, andbug.screed
 
-@andbug.command.action('<eid>', name='break-remove', shell=True)
+@andbug.command.action('<eid/all>', name='break-remove', shell=True)
 def break_remove(ctxt, eid):
-    'remove a hook/breakpoint'
+    'remove hook/breakpoint'
     ctxt.sess.suspend()
     try:
-        eid = int(eid)
-        if eid in ctxt.sess.emap:
-            ctxt.sess.emap[eid].clear()
-            andbug.screed.section('Hook <%s> removed' % eid)
+        if eid == 'all':
+            with andbug.screed.section('remove all hook'):
+                for eid in ctxt.sess.emap.keys():
+                    ctxt.sess.emap[eid].clear()
+                    andbug.screed.item('Hook <%s> removed' % eid)
         else:
-            print '!! error, hook not found. eid=%s' % eid
+            eid = int(eid)
+            if eid in ctxt.sess.emap:
+                ctxt.sess.emap[eid].clear()
+                andbug.screed.section('Hook <%s> removed' % eid)
+            else:
+                print '!! error, hook not found. eid=%s' % eid
     finally:
         ctxt.sess.resume()
