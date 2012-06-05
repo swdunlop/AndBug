@@ -9,6 +9,5 @@ Thanks go to the following people for patches and contributions:
   Felipe Barriga Richards <spam@felipebarriga.cl>
     Inspect command, improved Classes command, hook origins, break-list command.
 
-  CzBix <https://github.com/czbix>
-    Non-localhost Navi, better thread status, found thread.suspend bug
-
+  CzBiX <https://github.com/CzBiX>
+    Non-localhost Navi, better thread status, remove all hook, found thread.suspend bug
