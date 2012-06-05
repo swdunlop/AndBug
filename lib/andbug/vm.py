@@ -786,6 +786,7 @@ class Session(object):
             if rx_dalvik_tname.match(name):
                 seq = (t for t in seq if t.name == name)
             else:
+                name = str(name)
                 name = name if not re.match('^\d+$', name) else '<' + name + '>'
                 seq = (t for t in seq if name in t.name.split(' ',1))
         return andbug.data.view(seq)
