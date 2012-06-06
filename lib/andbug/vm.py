@@ -287,8 +287,17 @@ class Location(SessionElement):
     def hook(self, func = None, queue = None):
         conn = self.conn
         buf = conn.buffer()
-        # 40:EK_METHOD_ENTRY, 1: SP_THREAD, 1 condition of type Location (7)
-        buf.pack('11i1', 40, 1, 1, 7) 
+        # 2: BREAKPOINT
+        # 40:METHOD_ENTRY
+        # 41:METHOD_EXIT
+        if self == self.method.firstLoc:
+            eventKind = 40
+        elif self == self.method.lastLoc:
+            eventKind = 41
+        else:
+            eventKind = 2
+        # 1: SP_THREAD, 1 condition of type Location (7)
+        buf.pack('11i1', eventKind, 1, 1, 7)
 
         self.packTo(buf)
         code, buf = conn.request(0x0f01, buf.data())
@@ -386,7 +395,7 @@ class Method(SessionElement):
         self.lastLoc = pool(Location, sess, tid, mid, l)
 
         ll = {}
-        self.lineLocs = ll
+        self.lineTable = ll
         def line_loc():
             loc, line  = buf.unpack('8i')
             loc = pool(Location, sess, tid, mid, loc)
@@ -671,13 +680,18 @@ def unpack_events(sess, buf):
         else:
             yield im(sess, buf)
 
-def unpack_method_entry(sess, buf):
+def unpack_event_location(sess, buf):
     rid = buf.unpackInt()
     t = Thread.unpackFrom(sess, buf)
     loc = Location.unpackFrom(sess, buf)
     return rid, t, loc
 
-register_unpack_impl(40, unpack_method_entry)
+# Breakpoint
+register_unpack_impl(2, unpack_event_location)
+# MothodEntry
+register_unpack_impl(40, unpack_event_location)
+# MothodExit
+register_unpack_impl(41, unpack_event_location)
 
 class Session(object):
     def __init__(self, conn):
