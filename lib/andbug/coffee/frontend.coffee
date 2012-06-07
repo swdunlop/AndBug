@@ -1,3 +1,6 @@
+# this file IS NOT up to date
+# see /view/frontend.js
+
 last = (seq) ->
     seq[seq.length - 1]
 

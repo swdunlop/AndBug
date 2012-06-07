@@ -166,7 +166,7 @@ NAVI_VERSION = 'AndBug Navi ' + NAVI_VERNO
 
 def get_object_item(val, key):
     try:
-        return val.fields[key]
+        return val.field(key)
     except KeyError:
         raise bottle.HTTPError(
         code=404, output='object does not have field "%s".' % key
@@ -199,7 +199,7 @@ def view_slot(tid, fid, key, path=None):
     'lists the values in the frame'
     tid, fid, key = int(tid), int(fid), str(key)
     threads = get_threads()
-    value = tuple(threads[tid].frames)[fid].values.get(key)
+    value = tuple(threads[tid].frames)[fid].value(key)
     if path is not None:
         path = path.split('/')
 
@@ -211,6 +211,67 @@ def view_slot(tid, fid, key, path=None):
     data = json.dumps(view(value))
     bottle.response.content_type = 'application/json'
     return data
+
+
+def set_object_item(val, key, value):
+    try:
+        return val.setField(key, value)
+    except KeyError:
+        raise bottle.HTTPError(
+            code=404, output='object does not have field "%s".' % key
+        )
+
+#def set_array_item(val, key):
+#    key = int(key)
+#
+#    try:
+#        return val[key]
+#    except KeyError:
+#        raise bottle.HTTPError(
+#            code=404, output='array does not have index %s.' % key
+#        )
+
+def set_item(value, key, val):
+    if isinstance(value, andbug.Array):
+        # return set_array_item(val, key)
+        return 'not support yet'
+    if isinstance(value, andbug.Object):
+        return set_object_item(value, key, val)
+
+    raise bottle.HTTPError(
+        code=404, output='cannot find type %s.' % type(value).__name__
+    )
+
+@bottle.route('/e/:tid/:fid/:key/:val')
+@bottle.route('/e/:tid/:fid/:key/:val/:path#.*#')
+def edit_slot(tid, fid, key, val=None, path=None):
+    'edit the values in the frame'
+    result = False
+    path_copy = path
+    while True:
+        if val is None:
+            result = False
+            break
+        tid, fid, key = int(tid), int(fid), str(key)
+        threads = get_threads()
+        frame = tuple(threads[tid].frames)[fid]
+        if path is None:
+            result = frame.setValue(key, val)
+            break
+
+        value = frame.value(key)
+        path = path.split('/')
+
+        while path:
+            key = path[0]
+            path = path[1:]
+            if len(path) > 1:
+                value = get_item(value, key)
+
+        result =  set_item(value, key, val)
+        break
+
+    return str(result)
 
 ###################################################### THE THREAD FOREST (TT)
 # The thread-forest API produces a JSON summary of the threads and their

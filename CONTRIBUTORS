@@ -10,4 +10,4 @@ Thanks go to the following people for patches and contributions:
     Inspect command, improved Classes command, hook origins, break-list command.
 
   CzBiX <https://github.com/CzBiX>
-    Non-localhost Navi, better thread status, remove all hook, found thread.suspend bug
+    Non-localhost Navi, better thread status, alter value of variables, set breakpoint in method, remove all breakpoint
