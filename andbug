@@ -14,13 +14,19 @@
 ## along with AndBug.  If not, see <http://www.gnu.org/licenses/>.
 
 'this script executes command modules found in andbug.commands'
+import os, os.path, sys, traceback, atexit
 
-import andbug, sys, os, os.path
-import andbug.cmd, andbug.command
-import traceback
-    
+def panic(why, exit=True, exc=False):
+    sys.stderr.write("!! %s\n" % (why,))
+    sys.stderr.flush()
+    if exc:
+        traceback.print_exc()
+    if exit:
+        sys.exit(-1)
+
 def main(args):
-    import atexit
+    import andbug, andbug.cmd, andbug.command
+
     atexit.register(sys.stdout.write, '\x1B[0m\n')
     andbug.command.load_commands()
 
@@ -28,11 +34,19 @@ def main(args):
         andbug.command.run_command(args)
         sys.exit(0)
     except andbug.UserError as err:
-        print '!! %s' % err
-        sys.exit(-1)
-    except Exception as exc:
-        traceback.print_exc()
-        sys.exit(-2)
+        panic(err)
+    except Exception as err:
+        panic(err, err=True)
+
+def find_python2():
+    path = os.environ.get("PATH")
+    if path == None:
+        panic("no PATH in your environment to search for python2")
+    for path in path.split(os.pathsep):
+        python2 = os.path.join(path, "python2")
+        if os.path.exists(python2):
+            return python2
+    panic("andbug does not support python != 2")
 
 if __name__ == '__main__':
     inv = os.path.basename(sys.argv[0]).lower()
@@ -42,5 +56,12 @@ if __name__ == '__main__':
         args = [inv] + sys.argv[1:]
 
     if not args: args = ['help']
+
+    if sys.version_info.major != 2:
+        python2 = find_python2()
+        panic('andbug requires python2, chaining to ' + python2, exit=False)
+        os.execv(python2, [python2] + sys.argv)
+        panic('could not execv %s' % python2)
+
     main(args)
 
