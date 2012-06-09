@@ -7,8 +7,7 @@
 ## TODO: add close button to popouts
 ## TODO: add static class list
 
-import andbug, os.path, cgi, json, subprocess, threading
-from urllib2 import quote as urlquote
+import andbug, os.path, json, subprocess, threading
 import re
 
 try:
@@ -26,6 +25,7 @@ def index_seq(seq):
         yield i, seq[i]
 
 def get_threads():
+    #note: proc here is injected to the module by andbug/command
     threads = proc.threads()[:] # TODO This workaround for view is vulgar.
     def tin(name):
         try:
@@ -37,6 +37,7 @@ def get_threads():
     return threads
 
 def get_classes():
+    #note: proc here is injected to the module by andbug/command
     classes = proc.classes()[:] # TODO This workaround for view is vulgar.
     classes.sort(lambda a, b: cmp(a.jni, b.jni))
 
@@ -116,8 +117,9 @@ def view(value):
 # We use static roots derived from the location of the Navi script.
 #############################################################################
 
+# note: __file__ is injected into the module by import
 NAVI_ROOT = os.path.abspath( 
-    os.path.join( os.path.dirname( __file__ ), '..' )
+    os.path.join( os.path.dirname(__file__), '..' )
 )
 STATIC_ROOT = os.path.join( NAVI_ROOT, 'data', '' )
 COFFEE_ROOT = os.path.join( NAVI_ROOT, 'coffee', '' )
@@ -131,12 +133,6 @@ def resolve_resource(root, rsrc):
     else:
         raise Exception('Less dots next time.')
 
-def resolve_coffee_resource(root, rsrc):
-    # We do not cache this at all; since this is a single-user, one-page
-    # interface.. I give a damn.
-    
-    return data
-
 @bottle.route( '/s/:req#.*#' )
 def static_data(req):
     rsrc = resolve_resource(COFFEE_ROOT, req)  
@@ -144,7 +140,7 @@ def static_data(req):
     if rsrc.endswith('.coffee') and os.path.exists(rsrc):
         req = rsrc.replace(COFFEE_ROOT, '')[:-7] + '.js'
         try:
-            ret = subprocess.call(('coffee', '-o', STATIC_ROOT, '-c', rsrc))
+            subprocess.call(('coffee', '-o', STATIC_ROOT, '-c', rsrc))
         except OSError:
             pass # use the cached version, looks like coffee isn't working.
     return bottle.static_file(req, root=STATIC_ROOT)
@@ -247,7 +243,6 @@ def set_item(value, key, val):
 def edit_slot(tid, fid, key, val=None, path=None):
     'edit the values in the frame'
     result = False
-    path_copy = path
     while True:
         if val is None:
             result = False
