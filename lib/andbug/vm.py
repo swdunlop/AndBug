@@ -146,6 +146,70 @@ class Frame(SessionElement):
 
         return vals
 
+    def value(self, name):
+        if self.native: return None
+
+        sess = self.sess
+        conn = self.conn
+        buf = conn.buffer()
+        buf.packObjectId(self.tid)
+        buf.packFrameId(self.fid)
+        slots = self.loc.slots
+        buf.packInt(1)
+
+        loc = None
+        for i in range(0, len(slots)):
+            if slots[i].name == name:
+                loc = i
+                break
+            else:
+                continue
+
+        if loc is None:
+            return None
+        slot = slots[loc]
+        buf.packInt(slot.index)
+        buf.packU8(slot.tag) #TODO: GENERICS
+
+        code, buf = conn.request(0x1001, buf.data())
+        if code != 0:
+            raise RequestError(code)
+        if buf.unpackInt() != 1:
+            return None
+
+        return unpack_value(sess, buf)
+
+    def setValue(self, name, value):
+        if self.native: return False
+
+        sess = self.sess
+        conn = self.conn
+        buf = conn.buffer()
+        buf.packObjectId(self.tid)
+        buf.packFrameId(self.fid)
+        slots = self.loc.slots
+        buf.packInt(1)
+
+        loc = None
+        for i in range(0, len(slots)):
+            if slots[i].name == name:
+                loc = i
+                break
+            else:
+                continue
+
+        if loc is None:
+            return False
+        slot = slots[loc]
+        buf.packInt(slot.index)
+        pack_value(sess, buf, value, slot.tag) #TODO: GENERICS
+
+        code, buf = conn.request(0x1002, buf.data())
+        if code != 0:
+            raise RequestError(code)
+
+        return True
+
 class Thread(SessionElement):
     #TODO: promote to Value
     def __init__(self, sess, tid):
@@ -287,8 +351,17 @@ class Location(SessionElement):
     def hook(self, func = None, queue = None):
         conn = self.conn
         buf = conn.buffer()
-        # 40:EK_METHOD_ENTRY, 1: SP_THREAD, 1 condition of type Location (7)
-        buf.pack('11i1', 40, 1, 1, 7) 
+        # 2: BREAKPOINT
+        # 40:METHOD_ENTRY
+        # 41:METHOD_EXIT
+        if self == self.method.firstLoc:
+            eventKind = 40
+        elif self == self.method.lastLoc:
+            eventKind = 41
+        else:
+            eventKind = 2
+        # 1: SP_THREAD, 1 condition of type Location (7)
+        buf.pack('11i1', eventKind, 1, 1, 7)
 
         self.packTo(buf)
         code, buf = conn.request(0x0f01, buf.data())
@@ -386,7 +459,7 @@ class Method(SessionElement):
         self.lastLoc = pool(Location, sess, tid, mid, l)
 
         ll = {}
-        self.lineLocs = ll
+        self.lineTable = ll
         def line_loc():
             loc, line  = buf.unpack('8i')
             loc = pool(Location, sess, tid, mid, loc)
@@ -671,13 +744,18 @@ def unpack_events(sess, buf):
         else:
             yield im(sess, buf)
 
-def unpack_method_entry(sess, buf):
+def unpack_event_location(sess, buf):
     rid = buf.unpackInt()
     t = Thread.unpackFrom(sess, buf)
     loc = Location.unpackFrom(sess, buf)
     return rid, t, loc
 
-register_unpack_impl(40, unpack_method_entry)
+# Breakpoint
+register_unpack_impl(2, unpack_event_location)
+# MothodEntry
+register_unpack_impl(40, unpack_event_location)
+# MothodExit
+register_unpack_impl(41, unpack_event_location)
 
 class Session(object):
     def __init__(self, conn):
@@ -867,6 +945,60 @@ class Object(Value):
 
         return vals
 
+    def field(self, name):
+        sess = self.sess
+        conn = self.conn
+        buf = conn.buffer()
+        buf.packTypeId(self.oid)
+        fields = self.fieldList
+        buf.packInt(1)
+
+        loc = None
+        for i in range(0, len(fields)):
+            if fields[i].name == name:
+                loc = i
+                break
+            else:
+                continue
+
+        if loc is None:
+            return None
+        field = fields[loc]
+        buf.packFieldId(field.fid)
+        code, buf = conn.request(0x0902, buf.data())
+        if code != 0:
+            raise RequestError(code)
+        if buf.unpackInt() != 1:
+            return None
+        return unpack_value(sess, buf)
+
+
+    def setField(self, name, value):
+        sess = self.sess
+        conn = self.conn
+        buf = conn.buffer()
+        buf.packTypeId(self.oid)
+        fields = self.fieldList
+        buf.packInt(1)
+
+        loc = None
+        for i in range(0, len(fields)):
+            if fields[i].name == name:
+                loc = i
+                break
+            else:
+                continue
+
+        if loc is None:
+            return None
+        field = fields[loc]
+        buf.packFieldId(field.fid)
+        pack_value(sess, buf, value, ord(field.jni))
+        code, buf = conn.request(0x0903, buf.data())
+        if code != 0:
+            raise RequestError(code)
+        return True
+
 ## with andbug.screed.item(str(obj)):
 ##     if hasattr(obj, 'dump'):
 ##        obj.dump()
@@ -993,6 +1125,31 @@ def unpack_value(sess, buf, tag = None):
         raise RequestError(tag)
     else:
         return fn(sess, buf)
+
+pack_value_impl = [None,] * 256
+def register_pack_value(tag, func):
+    for t in tag:
+        pack_value_impl[ord(t)] = func
+
+register_pack_value('B', lambda p, b, v: b.packU8(int(v)))
+register_pack_value('F', lambda p, b, v: b.packFloat(float(v))) #TODO: TEST
+register_pack_value('D', lambda p, b, v: b.packDouble(float(v))) #TODO:TEST
+register_pack_value('I', lambda p, b, v: b.packInt(int(v)))
+register_pack_value('J', lambda p, b, v: b.packLong(long(v)))
+register_pack_value('S', lambda p, b, v: b.packShort(int(v))) #TODO: TEST
+register_pack_value('V', lambda p, b, v: b.packVoid())
+register_pack_value('Z', lambda p, b, v: (b.packU8(1 if v != 'False' else 0)))
+#register_pack_value('s', lambda p, b, v: b.packStr(v)) # TODO: pack String
+
+def pack_value(sess, buf, value, tag = None):
+    if tag is None:
+        raise RequestError(tag)
+    fn = pack_value_impl[tag]
+    if fn is None:
+        raise RequestError(tag)
+    else:
+        buf.packU8(tag)
+        return fn(sess, buf, value)
 
 def connect(pid, dev=None):
     'connects using proto.forward() to the process associated with this context'

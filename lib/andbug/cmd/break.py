@@ -42,17 +42,41 @@ def cmd_break_classes(ctxt, cpath):
         h = c.hookEntries(func = report_hit)
         andbug.screed.item('Hooked %s' % h)
 
+def cmd_break_line(ctxt, cpath, mpath, line):
+    for c in ctxt.sess.classes(cpath):
+        for m in c.methods(mpath):
+            l = m.lineTable
+            if l is None or len(l) <= 0:
+                continue
+            if line == 'show':
+                andbug.screed.item(str(sorted(l.keys())))
+                continue
+            l = l.get(line, None)
+            if l is None:
+                andbug.screed.item("can't found line %i" % line)
+                continue
+            if l.native:
+                andbug.screed.item('Could not hook native %s' % l)
+                continue
+            h = l.hook(func = report_hit)
+            andbug.screed.item('Hooked %s' % h)
+
 @andbug.command.action(
-    '<class> [<method>]', name='break', aliases=('b',), shell=True
+    '<class> [<method>] [show/lineNo]', name='break', aliases=('b',), shell=True
 )
-def cmd_break(ctxt, cpath, mquery=None):
-    'suspends the process when a method is called'
+def cmd_break(ctxt, cpath, mquery=None, line=None):
+    'set breakpoint'
     cpath, mname, mjni = andbug.options.parse_mquery(cpath, mquery)
+    if line is not None:
+        if line != 'show':
+            line = int(line)
 
     with andbug.screed.section('Setting Hooks'):
         if mname is None:
             cmd_break_classes(ctxt, cpath)
-        else:
+        elif line is None:
             cmd_break_methods(ctxt, cpath, mname)
+        else:
+            cmd_break_line(ctxt, cpath, mname, line)
 
     ctxt.block_exit()
