@@ -22,13 +22,15 @@ from Queue import Queue
 ## -- unpackFrom methods are used to unpack references to an element from
 ##    a JDWP buffer.  This does not mean unpacking the actual definition of
 ##    the element, which tends to be one-shot.
+##
 ## References:
 ## -- All codes that are sent to Dalvik VM where extracted from
 ##    dalvik/vm/jdwp/JdwpHandler.cpp and converted to HEX values
 ##    (e.g. Resume Thread: {11, 3, ....} => 0b03)
 ## -- JDWP Protocol:
-##    the set of functions defined, here, overlap those provided by dalvik
-##    http://docs.oracle.com/javase/1.4.2/docs/guide/jpda/jdwp/jdwp-protocol.html
+##    dalvik implements a subset of these, verify with JdwpHandler.cpp:
+##    http://docs.oracle.com/javase/6/docs/platform/jpda/jdwp/jdwp-protocol.html
+##    
 
 class RequestError(Exception):
     'raised when a request for more information from the process fails'
@@ -488,7 +490,6 @@ class Method(SessionElement):
         tid = self.tid
         mid = self.mid
         data = conn.buffer().pack('om', tid, mid)
-        # NOTE: this is defined in jdwpHandler.cpp, but not jdwp 1.4.2
         code, buf = conn.request(0x0605, data)
         if code != 0: raise RequestError(code)
     
@@ -533,7 +534,6 @@ class RefType(SessionElement):
         conn = self.conn
         buf = conn.buffer()
         self.packTo(buf)
-        # NOTE: this is defined in jdwpHandler.cpp, but not jdwp 1.4.2
         code, buf = conn.request(0x020d, buf.data())
         if code != 0:
             raise RequestError(code)
@@ -548,7 +548,6 @@ class RefType(SessionElement):
         conn = self.conn
         buf = conn.buffer()
         buf.pack("t", self.tid)
-        # NOTE: this is defined in jdwpHandler.cpp, but not jdwp 1.4.2
         code, buf = conn.request(0x020e, buf.data())
         if code != 0:
             raise RequestError(code)
@@ -580,7 +579,6 @@ class RefType(SessionElement):
         buf.packInt(len(fields))
         for field in fields:
             buf.packFieldId(field.fid)
-        # NOTE: this is defined in jdwpHandler.cpp, but not jdwp 1.4.2
         code, buf = conn.request(0x0206, buf.data())
         if code != 0:
             raise RequestError(code)
@@ -599,7 +597,6 @@ class RefType(SessionElement):
         pool = sess.pool
         buf = conn.buffer()
         buf.pack("t", tid)
-        # NOTE: this is defined in jdwpHandler.cpp, but not jdwp 1.4.2
         code, buf = conn.request(0x020f, buf.data())
         if code != 0:
             raise RequestError(code)
