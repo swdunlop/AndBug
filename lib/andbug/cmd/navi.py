@@ -189,27 +189,76 @@ def get_item(val, key):
         code=404, output='cannot navigate type %s.' % type(val).__name__
     )
 
-@bottle.route('/t/:tid/:fid/:key')
-@bottle.route('/t/:tid/:fid/:key/:path#.*#')
-def view_slot(tid, fid, key, path=None):
-    'lists the values in the frame'
-    tid, fid, key = int(tid), int(fid), str(key)
+#TODO: bottle will not handle responding with a non-json string
+
+def deref_frame(tid, fid):
     threads = get_threads()
-    value = tuple(threads[tid].frames)[fid].value(key)
-    if path is not None:
+    return tuple(threads[tid].frames)[fid]
+
+def deref_value(tid, fid, key, path):
+    if isinstance(path, basestring):
         path = path.split('/')
 
+    value = deref_frame(tid, fid).value(key)
     while path:
         key = path[0]
         path = path[1:]
         value = get_item(value, key)
+    
+    return value
 
-    data = json.dumps(view(value))
-    bottle.response.content_type = 'application/json'
-    return data
+@bottle.post('/t/:tid/:fid/:key')
+@bottle.post('/t/:tid/:fid/:key/:path#.*#')
+def change_slot(tid, fid, key, path=None):
+    'changes a value in a frame or object'
+    print "PARAMS", repr(tid), repr(fid), repr(key), repr(path)
+    tid, fid, key = int(tid), int(fid), str(key)
+    data = bottle.request.json 
+    print "DATA:", repr(data)
+    if not data:
+        raise bottle.HTTPError(
+            code=406, output='new value must be provided as JSON'
+        )
+    if path:
+        path = path.split('/')
+        print "PATH:", repr(path)
+        value = deref_value(tid, fid, key, path[:-1])
+        key = path[-1]
+    else:
+        value = deref_frame(tid, fid)
 
+    print "KEY:", repr(key)
+    print "VALUE:", repr(value)
 
-def set_object_item(val, key, value):
+    #if isinstance(value, andbug.Array):
+        # return set_array_item(value, key)
+    if isinstance(value, andbug.Object):
+        return set_object_field(value, key, data)
+    if isinstance(value, andbug.Frame):
+        return set_frame_slot(value, key, data)
+
+    raise bottle.HTTPError(code=404, output='navi cannot modify this value')
+
+def set_frame_slot(frame, key, data): #TEST
+    'changes the value of a frame slot'
+    #TODO: make sure frame.setValue throws a KeyError on failed slot update
+    print "FRAME:", frame, "KEY:", key
+    try:
+        result = frame.setValue(key, data)
+    except KeyError:
+        raise bottle.HTTPError(
+            code=404, output='frame does not have slot "%s".' % key
+        )
+
+    if result:
+        return data
+
+    raise bottle.HTTPError(
+        code=500, output='could not change slot "%s".' % key
+    )
+
+def set_object_field(val, key, value): #TEST
+    'changes the value of an object field'
     try:
         return val.setField(key, value)
     except KeyError:
@@ -227,46 +276,16 @@ def set_object_item(val, key, value):
 #            code=404, output='array does not have index %s.' % key
 #        )
 
-def set_item(value, key, val):
-    if isinstance(value, andbug.Array):
-        # return set_array_item(val, key)
-        return 'not support yet'
-    if isinstance(value, andbug.Object):
-        return set_object_item(value, key, val)
-
-    raise bottle.HTTPError(
-        code=404, output='cannot find type %s.' % type(value).__name__
-    )
-
-@bottle.route('/e/:tid/:fid/:key/:val')
-@bottle.route('/e/:tid/:fid/:key/:val/:path#.*#')
-def edit_slot(tid, fid, key, val=None, path=None):
-    'edit the values in the frame'
-    result = False
-    while True:
-        if val is None:
-            result = False
-            break
-        tid, fid, key = int(tid), int(fid), str(key)
-        threads = get_threads()
-        frame = tuple(threads[tid].frames)[fid]
-        if path is None:
-            result = frame.setValue(key, val)
-            break
-
-        value = frame.value(key)
-        path = path.split('/')
-
-        while path:
-            key = path[0]
-            path = path[1:]
-            if len(path) > 1:
-                value = get_item(value, key)
-
-        result =  set_item(value, key, val)
-        break
-
-    return str(result)
+@bottle.route('/t/:tid/:fid/:key')
+@bottle.route('/t/:tid/:fid/:key/:path#.*#')
+def view_slot(tid, fid, key, path=None):
+    'lists the values in the frame'
+    
+    tid, fid, key = int(tid), int(fid), str(key)
+    value = deref_value(tid, fid, key, path)
+    data = json.dumps(view(value))
+    bottle.response.content_type = 'application/json'
+    return data
 
 ###################################################### THE THREAD FOREST (TT)
 # The thread-forest API produces a JSON summary of the threads and their

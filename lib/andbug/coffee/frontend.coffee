@@ -1,5 +1,4 @@
-# this file IS NOT up to date
-# see /view/frontend.js
+#!/usr/bin/env coffee
 
 last = (seq) ->
     seq[seq.length - 1]
@@ -46,8 +45,53 @@ object_view = (ref, jni, slots ...) ->
     div.append(layout_slots(slots, ref)) if slots.length
     return div
 
+# TODO: edit out CSS elements to a stylesheet
+# TODO: ensure these things are primitive type aware
+
+submit_value = (doc) ->
+    new_data = doc.text()
+    old_data = doc.data('data')
+    ref = doc.data('ref')
+    if new_data == old_data
+        # no change observed -- walk away.
+        doc.prop('contenteditable', false)
+        doc.css('color', '').css('backgroundColor', '')
+        return
+    
+    doc.css('color', 'red')
+    req = post_json(doc.data('ref'), new_data)
+    req.success -> 
+        doc.css('color', 'green').data('data', new_data)
+    req.error (_, status, error) ->
+        doc.css('color', 'red').text(old_data)
+        console.log(ref, new_data, error || status) #TODO: better reporting
+    req.complete ->
+        doc.prop('contenteditable', false);
+        after_timeout(3000, -> 
+            doc.css({color:'', backgroundColor:''}))
+
+# coffee-script hackers really prefer that funcs come last..
+after_timeout = (ms, next) -> setTimeout(next, ms)
+
+# $.post is json-stupid, so is bare $.ajax..
+post_json = (url, data) ->
+    $.ajax {
+        type:'POST', dataType:'json'
+        contentType:'application/json; charset=utf-8', 
+        url : url, data : JSON.stringify(data)}
+
+edit_value = (doc) -> 
+    doc.prop('contenteditable', true)
+    doc.css('color', 'black').css('backgroundColor', 'white')
+    doc.blur -> submit_value(doc)
+
 value_view = (ref, data) ->
-    $('<span class="val">').text(data)
+    doc = $('<span class="val">').text(data)
+    doc.data('ref', ref).data('data', data)
+    doc.click -> edit_value(doc)
+
+#value_view = (ref, data) ->
+#    $('<span class="val">').text(data)
 
 popout = (c) ->
     p = $('<div class="popout">').append(c)
