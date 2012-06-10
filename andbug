@@ -57,7 +57,7 @@ if __name__ == '__main__':
 
     if not args: args = ['help']
 
-    if sys.version_info.major != 2:
+    if sys.version_info[0] != 2:
         python2 = find_python2()
         panic('andbug requires python2, chaining to ' + python2, exit=False)
         os.execv(python2, [python2] + sys.argv)
