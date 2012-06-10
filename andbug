@@ -36,7 +36,7 @@ def main(args):
     except andbug.UserError as err:
         panic(err)
     except Exception as err:
-        panic(err, err=True)
+        panic(err, exc=True)
 
 def find_python2():
     path = os.environ.get("PATH")
