@@ -204,7 +204,7 @@ class Frame(SessionElement):
             return False
         slot = slots[loc]
         buf.packInt(slot.index)
-        pack_value(sess, buf, value, slot.tag) #TODO: GENERICS
+        pack_value(sess, buf, value, slot.jni) #TODO: GENERICS
 
         code, buf = conn.request(0x1002, buf.data())
         if code != 0:
@@ -990,7 +990,8 @@ class Object(Value):
             return None
         field = fields[loc]
         buf.packFieldId(field.fid)
-        pack_value(sess, buf, value, ord(field.jni))
+        #TODO: WTF: ord(field.jni) !?
+        pack_value(sess, buf, value, field.jni[0])
         code, buf = conn.request(0x0903, buf.data())
         if code != 0:
             raise RequestError(code)
@@ -1135,12 +1136,15 @@ register_pack_value('I', lambda p, b, v: b.packInt(int(v)))
 register_pack_value('J', lambda p, b, v: b.packLong(long(v)))
 register_pack_value('S', lambda p, b, v: b.packShort(int(v))) #TODO: TEST
 register_pack_value('V', lambda p, b, v: b.packVoid())
-register_pack_value('Z', lambda p, b, v: (b.packU8(1 if v != 'False' else 0)))
+register_pack_value('Z', lambda p, b, v: b.packU8(bool(v) and 1 or 0))
 #register_pack_value('s', lambda p, b, v: b.packStr(v)) # TODO: pack String
 
 def pack_value(sess, buf, value, tag = None):
-    if tag is None:
+    if not tag:
         raise RequestError(tag)
+    if isinstance(tag, basestring):
+        tag = ord(tag[0])
+    print "PACK", repr(tag), repr(value)
     fn = pack_value_impl[tag]
     if fn is None:
         raise RequestError(tag)
