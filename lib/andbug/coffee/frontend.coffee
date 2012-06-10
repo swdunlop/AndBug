@@ -49,7 +49,7 @@ object_view = (ref, jni, slots ...) ->
 # TODO: ensure these things are primitive type aware
 
 submit_value = (doc) ->
-    new_data = doc.text()
+    new_data = $.parseJSON(doc.text())
     old_data = doc.data('data')
     ref = doc.data('ref')
     if new_data == old_data
@@ -58,13 +58,16 @@ submit_value = (doc) ->
         doc.css('color', '').css('backgroundColor', '')
         return
     
+    #TODO: ensure type is consistent between new_data and old_data
+    
     doc.css('color', 'red')
     req = post_json(doc.data('ref'), new_data)
     req.success -> 
         doc.css('color', 'green').data('data', new_data)
-    req.error (_, status, error) ->
+    req.error (xhr, status, error) ->
         doc.css('color', 'red').text(old_data)
         console.log(ref, new_data, error || status) #TODO: better reporting
+        console.log(arguments)
     req.complete ->
         doc.prop('contenteditable', false);
         after_timeout(3000, -> 
@@ -81,6 +84,7 @@ post_json = (url, data) ->
         url : url, data : JSON.stringify(data)}
 
 edit_value = (doc) -> 
+    doc.text(JSON.stringify(doc.data('data')))
     doc.prop('contenteditable', true)
     doc.css('color', 'black').css('backgroundColor', 'white')
     doc.blur -> submit_value(doc)
@@ -110,7 +114,6 @@ popout_view = (ref, data) ->
 layout_value = (val, ref) ->
     val = $('<span class="val">').text(val)
     if ref
-        console.log(ref)
         val = $('<a>').append(val)
         val.click -> $.get(ref).success (data) -> popout_view(ref, data)
     return val
@@ -127,7 +130,6 @@ layout_items = (items, base) ->
     else if base.match(/[^\/]$/)
         base = base + '/'
 
-    console.log(items)
     slots = $('<div class="slots">')
     sz = items.length
     for ix in [0 .. sz]
@@ -160,7 +162,6 @@ layout_thread = (t) ->
     return div
 
 show_thread = (t) ->
-    console.log(t)
     $('.frame').hide()
     t.find('.frame').show()
 

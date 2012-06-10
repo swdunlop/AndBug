@@ -25,19 +25,19 @@ def index_seq(seq):
         yield i, seq[i]
 
 def get_threads():
-    #note: proc here is injected to the module by andbug/command
+    global proc # set by navi_loop
     threads = proc.threads()[:] # TODO This workaround for view is vulgar.
     def tin(name):
         try:
             return int(re.split('<|>', name)[1])
-        except:
+        except Exception:
             return name
 
     threads.sort(lambda a, b: cmp(tin(a.name), tin(b.name)))
     return threads
 
 def get_classes():
-    #note: proc here is injected to the module by andbug/command
+    global proc # set by navi_loop
     classes = proc.classes()[:] # TODO This workaround for view is vulgar.
     classes.sort(lambda a, b: cmp(a.jni, b.jni))
 
@@ -84,7 +84,7 @@ def info(value):
             return repr(value).replace('\\x00', '') # HACK
     if isinstance(value, andbug.Object):
         return object_info(value)
-    return str(value)
+    return value
     
 ############################################################## VIEW UTILITIES
 # These functions summarize various Java objects into JSON views suitable for
@@ -152,7 +152,7 @@ def static_data(req):
 # concurrent requests.
 #############################################################################
 
-NAVI_VERNO = '0.1'
+NAVI_VERNO = '0.2'
 NAVI_VERSION = 'AndBug Navi ' + NAVI_VERNO
 
 ################################################################# THREAD AXIS
@@ -211,45 +211,43 @@ def deref_value(tid, fid, key, path):
 @bottle.post('/t/:tid/:fid/:key/:path#.*#')
 def change_slot(tid, fid, key, path=None):
     'changes a value in a frame or object'
-    print "PARAMS", repr(tid), repr(fid), repr(key), repr(path)
     tid, fid, key = int(tid), int(fid), str(key)
     data = bottle.request.json 
-    print "DATA:", repr(data)
-    if not data:
-        raise bottle.HTTPError(
-            code=406, output='new value must be provided as JSON'
-        )
+    if data is None:
+        if bottle.request.header('Content-Type').startswith('application/json'):
+            pass # null isn't a crime..
+        else:
+            raise bottle.HTTPError(
+                code=406, output='new value must be provided as JSON'
+            )
     if path:
         path = path.split('/')
-        print "PATH:", repr(path)
         value = deref_value(tid, fid, key, path[:-1])
         key = path[-1]
     else:
         value = deref_frame(tid, fid)
 
-    print "KEY:", repr(key)
-    print "VALUE:", repr(value)
-
     #if isinstance(value, andbug.Array):
         # return set_array_item(value, key)
     if isinstance(value, andbug.Object):
-        return set_object_field(value, key, data)
-    if isinstance(value, andbug.Frame):
-        return set_frame_slot(value, key, data)
-
-    raise bottle.HTTPError(code=404, output='navi cannot modify this value')
+        set_object_field(value, key, data)
+    elif isinstance(value, andbug.Frame):
+        set_frame_slot(value, key, data)
+    else:
+        raise bottle.HTTPError(code=404, output='navi cannot modify this value')
+    
+    return {}
 
 def set_frame_slot(frame, key, data): #TEST
     'changes the value of a frame slot'
     #TODO: make sure frame.setValue throws a KeyError on failed slot update
-    print "FRAME:", frame, "KEY:", key
     try:
         result = frame.setValue(key, data)
     except KeyError:
         raise bottle.HTTPError(
             code=404, output='frame does not have slot "%s".' % key
         )
-
+    
     if result:
         return data
 
@@ -260,11 +258,18 @@ def set_frame_slot(frame, key, data): #TEST
 def set_object_field(val, key, value): #TEST
     'changes the value of an object field'
     try:
-        return val.setField(key, value)
+        result = val.setField(key, value)
     except KeyError:
         raise bottle.HTTPError(
             code=404, output='object does not have field "%s".' % key
         )
+    
+    if result:
+        return value
+
+    raise bottle.HTTPError(
+        code=500, output='could not change field "%s".' % key
+    )
 
 #def set_array_item(val, key):
 #    key = int(key)
@@ -370,7 +375,9 @@ def navi(ctxt, allowRemote = False, port = None):
     ):
         andbug.screed.item('Process suspended for navigation.')
         ctxt.sess.suspend()
+    
 
     svr = threading.Thread(target=lambda: navi_loop(ctxt.sess, address, port))
     svr.daemon = 1 if ctxt.shell else 0
     svr.start()
+    
