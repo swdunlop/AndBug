@@ -48,30 +48,51 @@ object_view = (ref, jni, slots ...) ->
 # TODO: edit out CSS elements to a stylesheet
 # TODO: ensure these things are primitive type aware
 
+complain = (problem) ->
+    console.log(problem)
+    alert(problem)
+    #TODO: improvements needed
+
+release_value = (doc, data) ->
+    console.log("release", data)
+    text = JSON.stringify(data)
+    doc.data('data', data)
+    doc.prop('contenteditable', false).text(text).css {
+        'color':'', 'background-color':''
+    }
+
 submit_value = (doc) ->
-    new_data = $.parseJSON(doc.text())
+    try
+        new_data = $.parseJSON(doc.text())
+    catch err
+        return complain("could not parse #{new_data}: #{err}")
     old_data = doc.data('data')
     ref = doc.data('ref')
-    if new_data == old_data
-        # no change observed -- walk away.
-        doc.prop('contenteditable', false)
-        doc.css('color', '').css('backgroundColor', '')
-        return
+
+    # if old_data is new_data, let it go..
+    return release_value(doc, old_data) if new_data == old_data
     
     #TODO: ensure type is consistent between new_data and old_data
     
+    # indicate that we have started submitting..
     doc.css('color', 'red')
     req = post_json(doc.data('ref'), new_data)
-    req.success -> 
-        doc.css('color', 'green').data('data', new_data)
+
+    req.success (result) ->
+        console.log(result)
+        if result.error
+            release_value(doc, old_data).css('color', 'red')
+            complain(result.error)
+        else
+            release_value(doc, new_data).css('color', 'green')
+
     req.error (xhr, status, error) ->
-        doc.css('color', 'red').text(old_data)
-        console.log(ref, new_data, error || status) #TODO: better reporting
-        console.log(arguments)
+        release_value(doc).text(old_data).css('color', 'red')
+        complain(error || status)
+
     req.complete ->
-        doc.prop('contenteditable', false);
-        after_timeout(3000, -> 
-            doc.css({color:'', backgroundColor:''}))
+        # after 3s, we clear the color
+        after_timeout 3000, -> doc.css({'color':''})
 
 # coffee-script hackers really prefer that funcs come last..
 after_timeout = (ms, next) -> setTimeout(next, ms)
@@ -87,7 +108,9 @@ edit_value = (doc) ->
     doc.text(JSON.stringify(doc.data('data')))
     doc.prop('contenteditable', true)
     doc.css('color', 'black').css('backgroundColor', 'white')
-    doc.blur -> submit_value(doc)
+    doc.blur -> 
+        doc.unbind('blur')  # blur tends to bounce..
+        submit_value(doc)
 
 value_view = (ref, data) ->
     doc = $('<span class="val">').text(data)

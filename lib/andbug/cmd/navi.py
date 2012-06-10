@@ -189,8 +189,6 @@ def get_item(val, key):
         code=404, output='cannot navigate type %s.' % type(val).__name__
     )
 
-#TODO: bottle will not handle responding with a non-json string
-
 def deref_frame(tid, fid):
     threads = get_threads()
     return tuple(threads[tid].frames)[fid]
@@ -211,32 +209,35 @@ def deref_value(tid, fid, key, path):
 @bottle.post('/t/:tid/:fid/:key/:path#.*#')
 def change_slot(tid, fid, key, path=None):
     'changes a value in a frame or object'
-    tid, fid, key = int(tid), int(fid), str(key)
-    data = bottle.request.json 
-    if data is None:
-        if bottle.request.header('Content-Type').startswith('application/json'):
-            pass # null isn't a crime..
+    try:
+        tid, fid, key = int(tid), int(fid), str(key)
+        content_type = bottle.request.get_header('Content-Type', '')
+        if not content_type.startswith('application/json'):
+            return {"error":"new value must be provided as JSON"}
+        if path:
+            path = path.split('/')
+            value = deref_value(tid, fid, key, path[:-1])
+            key = path[-1]
         else:
-            raise bottle.HTTPError(
-                code=406, output='new value must be provided as JSON'
-            )
-    if path:
-        path = path.split('/')
-        value = deref_value(tid, fid, key, path[:-1])
-        key = path[-1]
-    else:
-        value = deref_frame(tid, fid)
-
-    #if isinstance(value, andbug.Array):
-        # return set_array_item(value, key)
-    if isinstance(value, andbug.Object):
-        set_object_field(value, key, data)
-    elif isinstance(value, andbug.Frame):
-        set_frame_slot(value, key, data)
-    else:
-        raise bottle.HTTPError(code=404, output='navi cannot modify this value')
+            value = deref_frame(tid, fid)
+        data = bottle.request.json 
+    except Exception as exc:
+        #TODO: indicate that this was a deref error
+        #TODO: log all non-HTTP errors to stderr
+        return {"error":str(exc)}
     
-    return {}
+    try:
+        #if isinstance(value, andbug.Array):
+            # return set_array_item(value, key)
+        if isinstance(value, andbug.Object):
+            return set_object_field(value, key, data)
+        elif isinstance(value, andbug.Frame):
+            return set_frame_slot(value, key, data)
+        return {"error":"navi can only modify object fields and frame slots"}
+    except Exception as exc:
+        #TODO: indicate that this was an assignment error
+        #TODO: log all non-HTTP errors to stderr
+        return {"error":str(exc)}
 
 def set_frame_slot(frame, key, data): #TEST
     'changes the value of a frame slot'
@@ -244,32 +245,22 @@ def set_frame_slot(frame, key, data): #TEST
     try:
         result = frame.setValue(key, data)
     except KeyError:
-        raise bottle.HTTPError(
-            code=404, output='frame does not have slot "%s".' % key
-        )
+        return {"error":"navi cannot find slot %r" % key}
     
     if result:
-        return data
-
-    raise bottle.HTTPError(
-        code=500, output='could not change slot "%s".' % key
-    )
+        return {}
+    return {"error":"navi could not change slot %r" % key}
 
 def set_object_field(val, key, value): #TEST
     'changes the value of an object field'
     try:
         result = val.setField(key, value)
     except KeyError:
-        raise bottle.HTTPError(
-            code=404, output='object does not have field "%s".' % key
-        )
+        return {"error":"navi cannot find field %r" % key}
     
     if result:
-        return value
-
-    raise bottle.HTTPError(
-        code=500, output='could not change field "%s".' % key
-    )
+        return {}
+    return {"error":"navi could not change field %r" % key}
 
 #def set_array_item(val, key):
 #    key = int(key)
