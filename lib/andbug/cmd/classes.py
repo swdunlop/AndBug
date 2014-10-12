@@ -20,16 +20,16 @@ import andbug.command, andbug.screed
 def classes(ctxt, expr=None):
     'lists loaded classes. if no partial class name supplied, list all classes.'
     with andbug.screed.section('Loaded Classes'):
-	    for c in ctxt.sess.classes():
-	        n = c.jni
-	        if n.startswith('L') and n.endswith(';'):
-                    n = n[1:-1].replace('/', '.')
-                else:
-                    continue
+        for c in ctxt.sess.classes():
+            n = c.jni
+            if n.startswith('L') and n.endswith(';'):
+                n = n[1:-1].replace('/', '.')
+            else:
+                continue
 
-                if expr is not None:
-                    if n.find(expr) >= 0:
-                        andbug.screed.item(n)
-                else:
+            if expr is not None:
+                if n.find(expr) >= 0:
                     andbug.screed.item(n)
+            else:
+                andbug.screed.item(n)
 
